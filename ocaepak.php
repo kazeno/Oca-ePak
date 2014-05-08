@@ -28,6 +28,7 @@ class OcaEpak extends CarrierModule
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
         $this->module_key = '';
         $this->bootstrap = true;
+        include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOperative.php";
 
         parent::__construct();
         $this->displayName = 'Oca e-Pak';
@@ -50,13 +51,15 @@ class OcaEpak extends CarrierModule
 
     public function install()
     {
+        $db = Db::getInstance();
         return (
             parent::install() AND
-            $this->db->Execute(
+            $db->Execute(
                 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::OPERATIVES_TABLE . '` (
                     `id` int(20) NOT NULL UNIQUE,
                     `description` text NULL,
                     `addfee` varchar(10) NULL,
+                    `id_shop` int(10) unsigned NOT NULL ,
                     PRIMARY KEY (`id`)
                 )'
             ) AND
@@ -67,15 +70,17 @@ class OcaEpak extends CarrierModule
             Configuration::updateValue(self::CONFIG_PREFIX.'_CUIT', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_DEFWEIGHT', '0') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_DEFVOLUME', '0') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_FAILCOST', '0') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_POSTCODE', '')
         );
     }
 
     public function uninstall()
     {
+        $db = Db::getInstance();
         return (
             parent::uninstall() AND
-            $this->db->Execute(
+            $db->Execute(
                 'DROP TABLE IF EXISTS '._DB_PREFIX_.self::OPERATIVES_TABLE
             ) AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_EMAIL') AND
@@ -83,6 +88,7 @@ class OcaEpak extends CarrierModule
             Configuration::deleteByName(self::CONFIG_PREFIX.'_CUIT') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_DEFWEIGHT') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_DEFVOLUME') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_FAILCOST') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_POSTCODE')
         );
     }
@@ -132,10 +138,15 @@ class OcaEpak extends CarrierModule
             ),
             array(
                 'form' => array(
-                    'legend' => array(
+                    /*'legend' => array(
                         'title' => '2. '.$this->l('Operatives')
-                    ),
-                    ### @todo: Operatives list
+                    ),*/
+                    'input' => array(
+                        array(
+                            'type' => 'html',
+                            'name' => $this->renderOperativesList()
+                        )
+                    )
                 )
             ),
             array(
@@ -158,7 +169,7 @@ class OcaEpak extends CarrierModule
                     'legend' => array(
                         'title' => '4. '.$this->l('Failsafes')
                     ),
-                    'description' => $this->l('This settings will be used in case of missing data'),
+                    'description' => $this->l('This settings will be used in case of missing data in your products'),
                     'input' => array(
                         array(
                             'type' => 'text',
@@ -190,17 +201,17 @@ class OcaEpak extends CarrierModule
                 )
             )
         );
-        $fields_value = array_merge(
+        $fields_value = //array_merge(
             array(
-                'client_id' => Tools::getValue('client_id', Configuration::get(self::CONFIG_PREFIX.'_CLIENT_ID')),
-                'client_secret' => Tools::getValue('client_secret', Configuration::get(self::CONFIG_PREFIX.'_CLIENT_SECRET')),
-                'fee' => Tools::getValue('fee', Configuration::get(self::CONFIG_PREFIX.'_FEE')),
-                'checkout_type' => Tools::getValue('checkout_type', Configuration::get(self::CONFIG_PREFIX.'_CHECKOUT_TYPE')),
-                'sandbox' => Tools::getValue('sandbox', Configuration::get(self::CONFIG_PREFIX.'_SANDBOX_MODE')),
-                'wait_status_name' => '',
-                'color' => '#ffff00',
-            ),
-            array()
+                'email' => Tools::getValue('email', Configuration::get(self::CONFIG_PREFIX.'_EMAIL')),
+                'password' => Tools::getValue('password', Configuration::get(self::CONFIG_PREFIX.'_PASSWORD')),
+                'cuit' => Tools::getValue('cuit', Configuration::get(self::CONFIG_PREFIX.'_CUIT')),
+                'defweight' => Tools::getValue('defweight', Configuration::get(self::CONFIG_PREFIX.'_DEFWEIGHT')),
+                'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'_DEFVOLUME')),
+                'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')),
+                'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'_FAILCOST')),
+            //),
+            //array()
         );
 
         $helper = new HelperForm();
@@ -216,7 +227,85 @@ class OcaEpak extends CarrierModule
         $helper->submit_action = '';
         $helper->fields_value = $fields_value;
 
-        return $header.$helper->generateForm($fields_form);
+        return $helper->generateForm($fields_form);
+        //return $this->renderOperativesList();
+    }
+
+    public function  renderAccountForm()
+    {
+        $fields_form = array(
+            array(
+                'form' => array(
+                    'legend' => array(
+                        'title' => '1. '.$this->l('Account')
+                    ),
+                    'input' => array(
+                        array(
+                            'type' => 'text',
+                            'label' => $this->l('Email'),
+                            'name' => 'email',
+                            'class' => 'fixed-width-xxl'
+                        ),
+                        array(
+                            'type' => 'text',
+                            'label' => $this->l('Password'),
+                            'name' => 'password',
+                            'class' => 'fixed-width-xxl',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'label' => $this->l('CUIT'),
+                            'name' => 'cuit',
+                            'class' => 'fixed-width-lg'
+                        ),
+                    ),
+                )
+            ),
+        );
+    }
+
+    public function renderOperativesList()
+    {
+        $content = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::OPERATIVES_TABLE.'`');
+        $fields_list = array(
+            'id' => array(
+                'title' => $this->l('Operative'),
+                'type' => 'text',
+                'search' => false,
+                'orderby' => false,
+            ),
+            'description' => array(
+                'title' => $this->l('Description'),
+                'type' => 'text',
+                'search' => false,
+                'orderby' => false,
+            ),
+            'adfee' => array(
+                'title' => $this->l('Additional Fee'),
+                'type' => 'text',
+                'search' => false,
+                'orderby' => false,
+            ),
+        );
+
+        $helper = new HelperList();
+        $helper->module = $this;
+        $helper->title = $this->l('OCA Operatives');
+        $helper->shopLinkType = '';
+        $helper->simple_header = FALSE;
+        $helper->identifier = 'id';
+        $helper->table = self::OPERATIVES_TABLE;
+        $helper->currentIndex = AdminController::$currentIndex.'&configure='.$this->name;
+        $helper->token = Tools::getAdminTokenLite('AdminModules');
+        $helper->actions = array('edit', 'delete');
+        $helper->show_toolbar = TRUE;
+        //$helper->imageType = 'jpg';
+        $helper->toolbar_btn['new'] =  array(
+            'href' => AdminController::$currentIndex.'&configure='.$this->name.'&add'.$this->name.'&token='.Tools::getAdminTokenLite('AdminModules'),
+            'desc' => $this->l('Add new operative')
+        );
+
+        return $helper->generateList($content, $fields_list);
     }
 
     protected function _getErrors()
@@ -259,8 +348,8 @@ class OcaEpak extends CarrierModule
         );
         return Db::getInstance()->Execute('
             INSERT INTO '._DB_PREFIX_.self::OPERATIVES_TABLE."
-            (`id`, `description`, `fee`)
-            VALUES ({$operatives['id']}, {$operatives['description']}, {$operatives['fee']})"
+            (`id`, `description`, `fee`, `id_shop`)
+            VALUES ({$operatives['id']}, {$operatives['description']}, {$operatives['fee']}, {$this->context->shop->id})"
         );
     }
 
