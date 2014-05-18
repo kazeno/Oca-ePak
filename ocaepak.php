@@ -12,19 +12,25 @@ if (!defined( '_PS_VERSION_') OR !defined('_CAN_LOAD_FILES_'))
 
 class OcaEpak extends CarrierModule
 {
-    const CONFIG_PREFIX = 'OCAEPAK';    //prefix for all internal config constants
-    const OPERATIVES_TABLE = 'ocae_operatives';    //DB table for Operatives
-    const OPERATIVES_ID = 'id_ocae_operatives';    //DB table id for Operatives
+    const MODULE_NAME = 'ocaepak';                  //DON'T CHANGE!!
+    const CONFIG_PREFIX = 'OCAEPAK';                //prefix for all internal config constants
+    const CARRIER_NAME = 'Oca ePak';                //Carrier name string
+    const CARRIER_DELAY = '2 a 8 días hábiles';     //Carrier default delay string
+    const OPERATIVES_TABLE = 'ocae_operatives';     //DB table for Operatives
+    const OPERATIVES_ID = 'id_ocae_operatives';     //DB table id for Operatives
+    const QUOTES_TABLE = 'ocae_quotes';             //DB table for quotes
+    const QUOTES_ID = 'id_ocae_quotes';             //DB table id for quotes
 
+    public $id_carrier;
     protected $ocaUrl = 'http://webservice.oca.com.ar/oep_tracking/Oep_Track.asmx?WSDL';
     private $soapClient = NULL;
     protected  $guiHeader = '';
 
     public function __construct()
     {
-        $this->name = 'ocaepak';     //DON'T CHANGE!!
+        $this->name = self::MODULE_NAME;
         $this->tab = 'shipping_logistics';
-        $this->version = '0.4';
+        $this->version = '0.5';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
@@ -38,7 +44,8 @@ class OcaEpak extends CarrierModule
         $this->confirmUninstall = $this->l('This will delete any configured settings for this module. Continue?');
         $warnings = array();
         if (!extension_loaded('soap'))
-            array_push($warnings, $this->l('You have the Soap PHP extension disabled. This module requires it for ##TK.'));
+            array_push($warnings, $this->l('You have the Soap PHP extension disabled. This module requires it for connecting to the Oca webservice.'));
+        ## @todo check if references exist
         /*if (Configuration::get(self::CONFIG_PREFIX.'_CLIENT_ID')=='0' OR !Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_CLIENT_ID')))
             array_push($warnings, $this->l('You need to configure your account settings.'));*/
         /*if (!extension_loaded('json'))
@@ -53,21 +60,38 @@ class OcaEpak extends CarrierModule
 
     public function install()
     {
+        //make translator aware of strings used in models
+        $this->l('Optional fee format is incorrect. Should be either an amount, such as 7.50, or a percentage, such as 6.99%','OcaEpak');
+
         $db = Db::getInstance();
         return (
             $db->Execute(
                 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::OPERATIVES_TABLE . '` (
                     `'.self::OPERATIVES_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `id_carrier` INT UNSIGNED NULL,
                     `reference` INT UNSIGNED NOT NULL,
                     `description` text NULL,
                     `addfee` varchar(10) NULL,
-                    `id_shop` int(10) unsigned NOT NULL ,
+                    `id_shop` INT UNSIGNED NOT NULL ,
                     PRIMARY KEY (`'.self::OPERATIVES_ID.'`)
                 )'
             ) AND
+            $db->Execute(
+                'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::QUOTES_TABLE . '` (
+                    `'.self::QUOTES_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `reference` INT UNSIGNED NOT NULL,
+                    `postcode` INT UNSIGNED NULL,
+                    `volume` INT UNSIGNED NOT NULL,
+                    `weight` INT UNSIGNED NOT NULL,
+                    `price` FLOAT NOT NULL,
+                    PRIMARY KEY (`'.self::QUOTES_ID.'`)
+                )'
+            ) AND
             parent::install() AND
-            $this->registerHook('displayCarrierList') AND
+            $this->registerHook(_PS_VERSION_ < '1.5' ? 'extraCarrier' : 'displayCarrierList') AND
             $this->registerHook('displayAdminOrder') AND
+            $this->registerHook('actionCartSave') AND
+            $this->registerHook('updateCarrier') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_EMAIL', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_PASSWORD', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_CUIT', '') AND
@@ -85,6 +109,9 @@ class OcaEpak extends CarrierModule
             parent::uninstall() AND
             $db->Execute(
                 'DROP TABLE IF EXISTS '._DB_PREFIX_.self::OPERATIVES_TABLE
+            ) AND
+            $db->Execute(
+                'DROP TABLE IF EXISTS '._DB_PREFIX_.self::QUOTES_TABLE
             ) AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_EMAIL') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_PASSWORD') AND
@@ -107,7 +134,7 @@ class OcaEpak extends CarrierModule
             //$this->_clearCache('blockcmsinfo.tpl');
             $this->_addToHeader(
                 $op->delete()
-                    ? $this->displayConfirmation($this->l('Oca Operative')." $ref ".$this->l('has been successfully deleted'))
+                    ? $this->displayConfirmation($this->l('Oca Operative')." $ref ".$this->l('and its carrier have been successfully deleted'))
                 : $this->displayError('Error deleting Oca Operative')
             );
         } elseif (Tools::isSubmit('saveOcaOperative')) {
@@ -120,13 +147,13 @@ class OcaEpak extends CarrierModule
             if ($val !== TRUE)
                 return $this->displayError($this->_makeErrorFriendly($val)).$this->getAddOperativeContent();
             $op->save();
-            $this->_addToHeader($this->displayConfirmation($this->l('New Oca Operative has been successfully created')));
+            $this->_addToHeader($this->displayConfirmation($this->l('New Oca Operative and its carrier have been successfully created')));
         } elseif (Tools::isSubmit('submitOcaepak'))
             $this->_addToHeader(($error = $this->_getErrors()) ? $error : $this->_saveConfig());
         if (Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_EMAIL')) && Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'))) {
             //Check API Access is working correctly
             try {
-                //$this->_getSoapClient()->;
+                //$this->_getSoapClient()->; ### @todo
             } catch (Exception $e) {
                 $this->_addToHeader($this->displayError($e->getMessage()));
             }
@@ -140,14 +167,10 @@ class OcaEpak extends CarrierModule
                 function syncInputs(event) {
                     event.data.target.find("[name='"+$(this).attr("name")+"']").val($(this).val());
                     $table.find("[name='"+$(this).attr("name")+"']").val($(this).val());
-                    //console.log(event.data.target.find('name='+$(this).name).length);
-                    //console.log($(this).attr("name"));
-                    //console.log($(this).val());
                 }
                 $('#desc-ocae_operatives-refresh').hide();
                 $('#desc-ocae_operatives-new').bind('click', function() {
                     $table.attr('action', $(this).attr('href')).submit();
-                    //console.log($(this).attr('src'));
                     return false;
                 });
                 $('#form1, #form2').find("input[type='hidden']").clone().appendTo($table);
@@ -329,7 +352,7 @@ class OcaEpak extends CarrierModule
                             'type' => 'text',
                             'label' => $this->l('Description'),
                             'name' => 'description',
-                            'class' => 'fixed-width-xxl',
+                            'class' => 'fixed-width-xxl',   ##@todo make this way larger
                             'desc' =>  $this->l('This is a description of the operative attributes')
                         ),
                         array(
@@ -501,6 +524,16 @@ class OcaEpak extends CarrierModule
         return $this->displayConfirmation($this->l('Configuration saved'));
     }
 
+    public function hookActionCartSave($params) { return NULL; }    ## @todo async price check
+
+    public function hookDisplayCarrierList($params)
+    {
+        if (!$this->active OR $params['address']['id_country'] != Country::getByIso('AR'))
+            return FALSE;
+        return '<pre>'.print_r($params, TRUE).'</pre>';
+    }
+    public function hookExtraCarrier($params) { return $this->hookDisplayCarrierList($params); }
+
     /*protected function _saveOperatives($operatives)
     {
         Db::getInstance()->Execute('
@@ -513,6 +546,14 @@ class OcaEpak extends CarrierModule
             VALUES ({$operatives['id']}, {$operatives['description']}, {$operatives['fee']}, {$this->context->shop->id})"
         );
     }*/
+
+    public function hookUpdateCarrier($params)
+    {
+        $id_carrier_old = (int)($params['id_carrier']);
+        $id_carrier_new = (int)($params['carrier']->id);
+//        if ($id_carrier_old == (int)(Configuration::get('MYCARRIER_CARRIER_ID')))
+//            Configuration::updateValue('MYCARRIER_CARRIER_ID', $id_carrier_new);
+    }
 
 
     public function getOrderShippingCost($params, $shipping_cost)
@@ -541,9 +582,6 @@ class OcaEpak extends CarrierModule
 
     protected function _makeErrorFriendly($error)
     {
-        //make translator aware of the error string
-        $this->l('OcaEpak','Optional fee format is incorrect. Should be either an amount, such as 7.50, or a percentage, such as 6.99%','OcaEpak');
-
         $replacements = array(
             'Property OcaEpakOperative->reference' => $this->l('Operative Reference'),
             'Property OcaEpakOperative->description' => $this->l('Description')
