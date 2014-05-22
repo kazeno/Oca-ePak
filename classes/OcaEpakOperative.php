@@ -1,6 +1,9 @@
 <?php
 /**
+ * Oca e-Pak Module for Prestashop
  *
+ *  @author Rinku Kazeno <development@kazeno.co>
+ *  @file-version 1.0
  */
 
 class OcaEpakOperative extends ObjectModel
@@ -137,9 +140,9 @@ class OcaEpakOperative extends ObjectModel
     public static function purgeCarriers()
     {
         ob_start(); ?>
-            UPDATE `<?php echo _DB_PREFIX_; ?>product_carrier`
+            UPDATE `<?php echo _DB_PREFIX_; ?>carrier`
             SET deleted = 1
-            WHERE external_module_name = <?php echo OcaEpak::MODULE_NAME; ?>
+            WHERE external_module_name = '<?php echo OcaEpak::MODULE_NAME; ?>'
         <?php $query = ob_get_clean();
         return Db::getInstance()->execute($query);
     }

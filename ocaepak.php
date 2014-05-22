@@ -4,10 +4,10 @@
  * Tested in Prestashop v1.6.0.5
  *
  *  @author Rinku Kazeno <development@kazeno.co>
- *  @version 1.0
+ *  @version 1.0 beta
  */
 
-if (!defined( '_PS_VERSION_') OR !defined('_CAN_LOAD_FILES_'))
+if (!defined( '_PS_VERSION_'))
     exit;
 
 class OcaEpak extends CarrierModule
@@ -33,7 +33,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = self::MODULE_NAME;
         $this->tab = 'shipping_logistics';
-        $this->version = '0.8';
+        $this->version = '1.0b';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
@@ -43,7 +43,7 @@ class OcaEpak extends CarrierModule
 
         parent::__construct();
         $this->displayName = 'OCA e-Pak';
-        $this->description = $this->l('##TK');
+        $this->description = $this->l('Offer your customers automatic real-time quotes of their deliveries through OCA e-Pak');
         $this->confirmUninstall = $this->l('This will delete any configured settings for this module. Continue?');
         $warnings = array();
         if (!extension_loaded('soap'))
@@ -141,8 +141,8 @@ class OcaEpak extends CarrierModule
             $ref = $op->reference;
             $this->_addToHeader(
                 $op->delete()
-                    ? $this->displayConfirmation($this->l('Oca Operative')." $ref ".$this->l('and its carrier have been successfully deleted'))
-                : $this->displayError('Error deleting Oca Operative')
+                    ? $this->displayConfirmation($this->l('OCA Operative')." $ref ".$this->l('and its carrier have been successfully deleted'))
+                : $this->displayError('Error deleting OCA Operative')
             );
         } elseif (Tools::isSubmit('saveOcaOperative')) {
             $op = new OcaEpakOperative();
@@ -154,7 +154,7 @@ class OcaEpak extends CarrierModule
             if ($val !== TRUE)
                 return $this->displayError($this->_makeErrorFriendly($val)).$this->getAddOperativeContent();
             $op->save();
-            $this->_addToHeader($this->displayConfirmation($this->l('New Oca Operative and its carrier have been successfully created')));
+            $this->_addToHeader($this->displayConfirmation($this->l('New OCA Operative and its carrier have been successfully created')));
         } elseif (Tools::isSubmit('submitOcaepak'))
             $this->_addToHeader(($error = $this->_getErrors()) ? $error : $this->_saveConfig());
         if (Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_EMAIL')) && Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'))&& Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')) && ($ops = OcaEpakOperative::getOperativeIds())) {
@@ -172,7 +172,7 @@ class OcaEpak extends CarrierModule
                     ));
                     $xml = new SimpleXMLElement($response->Tarifar_Envio_CorporativoResult->any);
                     if (!$xml->count())
-                        $this->_addToHeader($this->displayError($this->l('There seems to be an error in the Oca operative with reference')." {$op->reference}"));
+                        $this->_addToHeader($this->displayError($this->l('There seems to be an error in the OCA operative with reference')." {$op->reference}"));
                 } catch (Exception $e) {
                     $this->_addToHeader($this->displayError($e->getMessage()));
                 }
@@ -296,7 +296,7 @@ class OcaEpak extends CarrierModule
                             'label' => $this->l('Failsafe Shipping Cost'),
                             'name' => 'failcost',
                             'class' => 'fixed-width-xxl',
-                            'desc' => $this->l('This is the shipping cost that will be used in the unlikely event the Oca server is down and we cannot get an online quote')
+                            'desc' => $this->l('This is the shipping cost that will be used in the unlikely event the OCA server is down and we cannot get an online quote')
                         ),
                         array(
                             'type' => 'hidden',
@@ -549,19 +549,16 @@ class OcaEpak extends CarrierModule
     public function hookDisplayCarrierList($params)
     {
         return NULL;
-        if (!$this->active OR $params['address']->id_country != Country::getByIso('AR'))
+        /*if (!$this->active OR $params['address']->id_country != Country::getByIso('AR'))
             return FALSE;
-        return '<pre>'.print_r($this->getCartPhysicalData($params['cart']), TRUE).'</pre>';
+        return '<pre>'.print_r($this->getCartPhysicalData($params['cart']), TRUE).'</pre>';*/
     }
     public function hookExtraCarrier($params) { return $this->hookDisplayCarrierList($params); }
 
     public function hookUpdateCarrier($params)
     {
-        Logger::AddLog('Carrier update old id: '.$params['id_carrier']);
-        Logger::AddLog('Carrier update new id: '.$params['carrier']->id);
         if ($op = OcaEpakOperative::getByFieldId('id_carrier', $params['id_carrier'])) {
             $op->id_carrier = (int)($params['carrier']->id);
-            Logger::AddLog('Updating carrier');
             return $op->save();
         }
         return true;
@@ -586,11 +583,11 @@ class OcaEpak extends CarrierModule
                 'Operativa' => $op->reference
             ));
             $xml = new SimpleXMLElement($response->Tarifar_Envio_CorporativoResult->any);
-            $data = $xml->NewDataSet->Table;
             if (!$xml->count())
-                $this->_addToHeader($this->displayError($this->l('There seems to be an error in either your origin Post Code or in the Oca operative with reference')." {$op->reference}"));
+                throw new Exception('No results from OCA webservice');
+            $data = $xml->NewDataSet->Table;
         } catch (Exception $e) {
-            Logger::AddLog($this->l('Ocaepak: error getting online price for cart '.$cart->id));
+            Logger::AddLog('Ocaepak: '.$this->l('error getting online price for cart')." {$cart->id}");
             return (float)$this->convertCurrencyFromArs(Configuration::get(self::CONFIG_PREFIX.'_FAILCOST'), $cart->id_currency);
         }
         return (float)Tools::ps_round($this->convertCurrencyFromArs($this->getTotalWithFee($data->Precio, $op->addfee), $cart->id_currency), 2);
