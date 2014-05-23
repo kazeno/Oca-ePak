@@ -1,10 +1,10 @@
 <?php
 /**
  * Oca e-Pak Module for Prestashop
- * Tested in Prestashop v1.6.0.5
+ * Tested in Prestashop v1.5.0.17, 1.5.6.2, 1.6.0.5, 1.6.0.6
  *
  *  @author Rinku Kazeno <development@kazeno.co>
- *  @version 1.0 beta
+ *  @version 1.0
  */
 
 if (!defined( '_PS_VERSION_'))
@@ -33,7 +33,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = self::MODULE_NAME;
         $this->tab = 'shipping_logistics';
-        $this->version = '1.0b';
+        $this->version = '1.0';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
@@ -157,9 +157,9 @@ class OcaEpak extends CarrierModule
             $this->_addToHeader($this->displayConfirmation($this->l('New OCA Operative and its carrier have been successfully created')));
         } elseif (Tools::isSubmit('submitOcaepak'))
             $this->_addToHeader(($error = $this->_getErrors()) ? $error : $this->_saveConfig());
-        if (Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_EMAIL')) && Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'))&& Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')) && ($ops = OcaEpakOperative::getOperativeIds())) {
+        if (Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_EMAIL')) && Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'))&& Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')) && Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_CUIT')) && ($ops = OcaEpakOperative::getOperativeIds())) {
             //Check API Access is working correctly
-            foreach ($ops as $op) {   ##@todo: test connection error
+            foreach ($ops as $op) {
                 try {
                     $response = $this->_getSoapClient()->Tarifar_Envio_Corporativo(array(
                         'PesoTotal' => '1',
@@ -181,9 +181,15 @@ class OcaEpak extends CarrierModule
         ob_start(); ?>
         <script>//<!--
             $(document).ready(function() {
+              <?php if (_PS_VERSION_ < '1.6') : ?>
+                var $form1 = $('#content>form').first().attr("id", "form1");
+                var $form2 = $('#content>form').last().attr("id", "form2");
+                var $table = $('#content>form').not($form1).not($form2).attr("id", 'ocae_operatives');
+              <?php else : ?>
                 var $form1 = $('#form1');
                 var $form2 = $('#form2');
                 var $table = $('#ocae_operatives');
+              <?php endif; ?>
                 function syncInputs(event) {
                     event.data.target.find("[name='"+$(this).attr("name")+"']").val($(this).val());
                     $table.find("[name='"+$(this).attr("name")+"']").val($(this).val());
@@ -194,7 +200,7 @@ class OcaEpak extends CarrierModule
                     $table.attr('action', $(this).attr('href')).submit();
                     return false;
                 });
-                $('#form1, #form2').find("input[type='hidden']").clone().appendTo($table);
+                $form1.add($form2).find("input[type='hidden']").clone().appendTo($table);
                 $form1.find("input[type='text']").bind('change', {target: $form2}, syncInputs);
                 $form2.find("input[type='text']").bind('change', {target: $form1}, syncInputs);
             });
@@ -338,6 +344,7 @@ class OcaEpak extends CarrierModule
         $helper->currentIndex = _PS_VERSION_ < '1.5' ? "index.php?tab=AdminModules&configure={$this->name}" : $this->context->link->getAdminLink('AdminModules', false).'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name;
         $lang = new Language((int)Configuration::get('PS_LANG_DEFAULT'));
         $helper->default_form_language = $lang->id;
+        $helper->show_toolbar = false;
         $helper->submit_action = '';
         $helper->fields_value = $fields_value;
 
@@ -548,10 +555,10 @@ class OcaEpak extends CarrierModule
      */
     public function hookDisplayCarrierList($params)
     {
-        return NULL;
-        /*if (!$this->active OR $params['address']->id_country != Country::getByIso('AR'))
+        /**if (!$this->active OR $params['address']->id_country != Country::getByIso('AR'))
             return FALSE;
-        return '<pre>'.print_r($this->getCartPhysicalData($params['cart']), TRUE).'</pre>';*/
+        return '<pre>'.print_r($this->getCartPhysicalData($params['cart']), TRUE).'</pre>';/**/
+        return NULL;
     }
     public function hookExtraCarrier($params) { return $this->hookDisplayCarrierList($params); }
 

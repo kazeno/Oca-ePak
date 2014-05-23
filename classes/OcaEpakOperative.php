@@ -83,7 +83,7 @@ class OcaEpakOperative extends ObjectModel
         $rangeWeight->delimiter2 = '10000';
         return (
             $carrier->add() AND
-            $carrier->setGroups($groups) AND
+            (method_exists('Carrier', 'setGroups') ? $carrier->setGroups($groups) : $this->setCarrierGroups($carrier, $groups)) AND
             $carrier->addZone(Country::getIdZone(Country::getByIso('AR'))) AND
             ($this->id_carrier = $rangePrice->id_carrier = $rangeWeight->id_carrier = (int)$carrier->id) AND
             $rangePrice->add() AND
@@ -145,5 +145,26 @@ class OcaEpakOperative extends ObjectModel
             WHERE external_module_name = '<?php echo OcaEpak::MODULE_NAME; ?>'
         <?php $query = ob_get_clean();
         return Db::getInstance()->execute($query);
+    }
+
+    /**
+     * Shim for old PS 1.5 versions without Carrier::setGroups()
+     *
+     * @param $carrier
+     * @param $groups
+     * @param bool $delete
+     * @return bool
+     */
+    protected function setCarrierGroups($carrier, $groups, $delete = true)
+    {
+        if ($delete)
+            Db::getInstance()->execute('DELETE FROM '._DB_PREFIX_.'carrier_group WHERE id_carrier = '.(int)$carrier->id);
+        if (!is_array($groups) || !count($groups))
+            return true;
+        $sql = 'INSERT INTO '._DB_PREFIX_.'carrier_group (id_carrier, id_group) VALUES ';
+        foreach ($groups as $id_group)
+            $sql .= '('.(int)$carrier->id.', '.(int)$id_group.'),';
+
+        return Db::getInstance()->execute(rtrim($sql, ','));
     }
 }
