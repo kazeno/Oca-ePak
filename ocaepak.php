@@ -4,7 +4,7 @@
  * Tested in Prestashop v1.5.0.17, 1.5.6.2, 1.6.0.5, 1.6.0.6
  *
  *  @author Rinku Kazeno <development@kazeno.co>
- *  @version 1.0
+ *  @version 1.1.0 Pre
  */
 
 if (!defined( '_PS_VERSION_'))
@@ -20,6 +20,8 @@ class OcaEpak extends CarrierModule
     const OPERATIVES_ID = 'id_ocae_operatives';     //DB table id for Operatives
     const QUOTES_TABLE = 'ocae_quotes';             //DB table for quotes
     const QUOTES_ID = 'id_ocae_quotes';             //DB table id for quotes
+    const ORDERS_TABLE = 'ocae_orders';             //DB table for orders
+    const ORDERS_ID = 'id_ocae_orders';             //DB table id for orders
     const TRACKING_URL = 'https://www1.oca.com.ar/OEPTrackingWeb/trackingenvio.asp?numero1=@';
     const OCA_URL = 'http://webservice.oca.com.ar/oep_tracking/Oep_Track.asmx?WSDL';
 
@@ -31,13 +33,13 @@ class OcaEpak extends CarrierModule
 
     public function __construct()
     {
-        $this->name = self::MODULE_NAME;
+        $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '1.0';
+        $this->version = '1.0.3';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
-        $this->module_key = '';
+        $this->module_key = '8ba7bceea44707dc9d6043606694cea5';
         $this->bootstrap = true;
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOperative.php";
 
@@ -48,18 +50,9 @@ class OcaEpak extends CarrierModule
         $warnings = array();
         if (!extension_loaded('soap'))
             array_push($warnings, $this->l('You have the Soap PHP extension disabled. This module requires it for connecting to the Oca webservice.'));
-        if (!Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_CUIT')))
+        if (!Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_CUIT')) || !Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_ACCOUNT')))
             array_push($warnings, $this->l('You need to configure your account settings.'));
-        /*if (!OcaEpakOperative::isCurrentlyUsed())
-            array_push($warnings, $this->l('You need to add at least one OCA Operative.'));*/
-        /*if (!extension_loaded('json'))
-            array_push($warnings, $this->l('JSON extension not installed. This module requires it for handling JSON-encoded data.'));*/
         $this->warning = implode(' | ', $warnings);
-        /*if (_PS_VERSION_ < '1.5') {         //Backwards compatibility for Prestashop versions < 1.5
-            require(_PS_MODULE_DIR_.$this->name.'/backward_compatibility/backward.php');
-            if (!in_array('HelperForm', get_declared_classes()))
-                require(_PS_MODULE_DIR_.$this->name.'/backward_compatibility/HelperForm.php');
-        }*/
     }
 
     public function install()
@@ -76,7 +69,9 @@ class OcaEpak extends CarrierModule
                     `reference` INT UNSIGNED NOT NULL,
                     `description` text NULL,
                     `addfee` varchar(10) NULL,
-                    `id_shop` INT UNSIGNED NOT NULL ,
+                    `id_shop` INT UNSIGNED NOT NULL,
+                    `type` CHAR(3) NOT NULL,
+                    `insured` INT UNSIGNED NULL,
                     PRIMARY KEY (`'.self::OPERATIVES_ID.'`)
                 )'
             ) AND
@@ -85,10 +80,21 @@ class OcaEpak extends CarrierModule
                     `'.self::QUOTES_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
                     `reference` INT UNSIGNED NOT NULL,
                     `postcode` INT UNSIGNED NULL,
+                    `origin` INT UNSIGNED NULL,
                     `volume` INT UNSIGNED NOT NULL,
                     `weight` INT UNSIGNED NOT NULL,
                     `price` FLOAT NOT NULL,
                     PRIMARY KEY (`'.self::QUOTES_ID.'`)
+                )'
+            ) AND
+            $db->Execute(
+                'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::ORDERS_TABLE . '` (
+                    `'.self::ORDERS_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `reference` INT UNSIGNED NOT NULL,
+                    `id_order` INT UNSIGNED NULL,
+                    `status` VARCHAR(120) NULL,
+                    `tracking` VARCHAR(24) NOT NULL,
+                    PRIMARY KEY (`'.self::ORDERS_ID.'`)
                 )'
             ) AND
             parent::install() AND
@@ -96,13 +102,23 @@ class OcaEpak extends CarrierModule
             $this->registerHook('displayAdminOrder') AND
             $this->registerHook('actionCartSave') AND
             $this->registerHook('updateCarrier') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_ACCOUNT', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_EMAIL', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_PASSWORD', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_CUIT', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_DEFWEIGHT', '0') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_DEFVOLUME', '0') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_FAILCOST', '0') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_DEFWEIGHT', '0.25') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_DEFVOLUME', '5000') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_FAILCOST', '60') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_POSTCODE', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_STREET', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_NUMBER', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_FLOOR', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_APARTMENT', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_LOCALITY', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_PROVINCE', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_CONTACT', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_REQUESTOR', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'_OBSERVATIONS', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_BOXES', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_AUTO_ORDER', false)
         );
@@ -120,6 +136,7 @@ class OcaEpak extends CarrierModule
             $db->Execute(
                 'DROP TABLE IF EXISTS '._DB_PREFIX_.self::QUOTES_TABLE
             ) AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_ACCOUNT') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_EMAIL') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_PASSWORD') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_CUIT') AND
@@ -127,6 +144,15 @@ class OcaEpak extends CarrierModule
             Configuration::deleteByName(self::CONFIG_PREFIX.'_DEFVOLUME') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_FAILCOST') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_POSTCODE') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_STREET') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_NUMBER') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_FLOOR') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_APARTMENT') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_LOCALITY') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_PROVINCE') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_CONTACT') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_REQUESTOR') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_OBSERVATIONS') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_BOXES') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_AUTO_ORDER')
         );
@@ -212,7 +238,7 @@ class OcaEpak extends CarrierModule
                 'form' => array(
                     'id_form' => 'form1',
                     'legend' => array(
-                        'title' => '1. '.$this->l('Account')
+                        'title' => '1. '.$this->l('OCA User Account')
                     ),
                     'input' => array(
                         array(
@@ -226,6 +252,13 @@ class OcaEpak extends CarrierModule
                             'label' => $this->l('Password'),
                             'name' => 'password',
                             'class' => 'fixed-width-xxl',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'label' => $this->l('OCA Account Number'),
+                            'name' => 'account',
+                            'class' => 'fixed-width-xxl',
+                            'desc' => $this->l('You can find your account number by logging into your OCA account and going to the following URL').': <br /><a href="http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>'
                         ),
                         array(
                             'type' => 'text',
@@ -261,16 +294,81 @@ class OcaEpak extends CarrierModule
                     'legend' => array(
                         'title' => '3. '.$this->l('Shipments')
                     ),
+                    'description' => $this->l('The address from where shipments will be made'),
                     'input' => array(
                         array(
                             'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Street'),
+                            'name' => 'street',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 5,
+                            'label' => $this->l('Number'),
+                            'name' => 'number',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 2,
+                            'label' => $this->l('Floor'),
+                            'name' => 'floor',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 4,
+                            'label' => $this->l('Apartment'),
+                            'name' => 'apartment',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'size' => 4,
                             'label' => $this->l('Origin Post Code'),
                             'name' => 'postcode',
                             'class' => 'fixed-width-lg',
                             'desc' => $this->l('The post code from where shipments will be made (only digits)')
 
                         ),
-                    )
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Locality'),
+                            'name' => 'locality',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Province'),
+                            'name' => 'province',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Contact'),
+                            'name' => 'contact',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Requestor'),
+                            'name' => 'requestor',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 100,
+                            'label' => $this->l('Observations'),
+                            'name' => 'observations',
+                            'class' => 'fixed-width-xl',
+                        ),
+                    ),
                 )
             ),
             array(
@@ -281,7 +379,7 @@ class OcaEpak extends CarrierModule
                     'legend' => array(
                         'title' => '4. '.$this->l('Failsafes')
                     ),
-                    'description' => $this->l('This settings will be used in case of missing data in your products'),
+                    'description' => $this->l('These settings will be used in case of missing data in your products'),
                     'input' => array(
                         array(
                             'type' => 'text',
@@ -326,6 +424,7 @@ class OcaEpak extends CarrierModule
             )
         );
         $fields_value = array(
+            'account' => Tools::getValue('account', Configuration::get(self::CONFIG_PREFIX.'_ACCOUNT')),
             'email' => Tools::getValue('email', Configuration::get(self::CONFIG_PREFIX.'_EMAIL')),
             'password' => Tools::getValue('password', Configuration::get(self::CONFIG_PREFIX.'_PASSWORD')),
             'cuit' => Tools::getValue('cuit', Configuration::get(self::CONFIG_PREFIX.'_CUIT')),
@@ -359,6 +458,7 @@ class OcaEpak extends CarrierModule
                     'legend' => array(
                         'title' => $this->l('New OCA Operative')
                     ),
+                    'description' => $this->l('You can find your OCA operatives by logging into your OCA account and going to the following URL').': <br /><a href="http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>',
                     'input' => array(
                         array(
                             'type' => 'text',
@@ -375,11 +475,49 @@ class OcaEpak extends CarrierModule
                             'desc' =>  $this->l('This will be displayed at checkout as the description of the shipping carrier corresponding to this operative')
                         ),
                         array(
+                            'type' => 'select',
+                            'label' => $this->l('Type'),
+                            'name' => 'type',
+                            'options' => array(
+                                'query' => array(
+                                    array('value' =>'PaP', 'text' =>'Puerta a Puerta (PaP)'),
+                                    array('value' =>'SaP', 'text' =>'Sucursal a Puerta (SaP)'),
+                                    array('value' =>'PaS', 'text' =>'Puerta a Sucursal (PaS)'),
+                                    array('value' =>'SaS', 'text' =>'Sucursal a Sucursal (SaS)'),
+                                ),
+                                'id' => 'value',
+                                'name' => 'text'
+                            ),
+                        ),
+                        array(
+                            'type' => _PS_VERSION_ < 1.6 ? 'radio' : 'switch',
+                            'label' => $this->l('Insured by OCA'),
+                            'name' => 'insured',
+                            'class' => 't',
+                            'is_bool' => TRUE,
+                            'values' => array(
+                                array(
+                                    'id' => 'insured_on',
+                                    'value' => '1',
+                                    'label' => 'on',
+                                ),
+                                array(
+                                    'id' => 'insured_off',
+                                    'value' => '0',
+                                    'label' => 'off',
+                                ),
+                            ),
+                        ),
+                        array(
                             'type' => 'text',
                             'label' => $this->l('Optional Fee'),
                             'name' => 'addfee',
                             'class' => 'fixed-width-lg',
                             'desc' =>  $this->l('Additional fee you wish to charge customers who choose this shipping option. Can be either a fixed amount (without the percent sign) or a percentage on top of the estimated shipping cost (ending with the percent sign). Set to either 0.00 or 0.00% to disable.')
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'account',
                         ),
                         array(
                             'type' => 'hidden',
@@ -427,8 +565,11 @@ class OcaEpak extends CarrierModule
             'reference' => Tools::getValue('reference', ''),
             'description' => Tools::getValue('description', ''),
             'addfee' => Tools::getValue('addfee', '0.00%'),
+            'type' => Tools::getValue('type', 'PaP'),
+            'insured' => Tools::getValue('insured', false),
 
             //Preserve previously input data:
+            'account' => Tools::getValue('account', Configuration::get(self::CONFIG_PREFIX.'_ACCOUNT')),
             'email' => Tools::getValue('email', Configuration::get(self::CONFIG_PREFIX.'_EMAIL')),
             'password' => Tools::getValue('password', Configuration::get(self::CONFIG_PREFIX.'_PASSWORD')),
             'cuit' => Tools::getValue('cuit', Configuration::get(self::CONFIG_PREFIX.'_CUIT')),
@@ -470,8 +611,20 @@ class OcaEpak extends CarrierModule
                 'search' => false,
                 'orderby' => false,
             ),
+            'type' => array(
+                'title' => $this->l('Type'),
+                'type' => 'text',
+                'search' => false,
+                'orderby' => false,
+            ),
+            'insured' => array(
+                'title' => $this->l('Insured'),
+                'type' => 'bool',
+                'search' => false,
+                'orderby' => false,
+            ),
             'addfee' => array(
-                'title' => $this->l('Additional Fee'),
+                'title' => $this->l('Charged Additional Fee'),
                 'type' => 'text',
                 'search' => false,
                 'orderby' => false,
@@ -514,6 +667,8 @@ class OcaEpak extends CarrierModule
     protected function _getErrors()
     {
         $error = '';
+        if (!Tools::strlen(trim(Tools::getValue('account'))))
+            $error .= $this->displayError($this->l('Invalid account number'));
         if (!Validate::isEmail(Tools::getValue('email')))
             $error .= $this->displayError($this->l('Invalid email'));
         if (!Validate::isPasswd(Tools::getValue('password'), 3))
@@ -536,6 +691,7 @@ class OcaEpak extends CarrierModule
 
     protected function _saveConfig()
     {
+        Configuration::updateValue(self::CONFIG_PREFIX.'_ACCOUNT', trim(Tools::getValue('account')));
         Configuration::updateValue(self::CONFIG_PREFIX.'_EMAIL', trim(Tools::getValue('email')));
         Configuration::updateValue(self::CONFIG_PREFIX.'_PASSWORD', Tools::getValue('password'));
         Configuration::updateValue(self::CONFIG_PREFIX.'_CUIT', trim(Tools::getValue('cuit')));
@@ -545,6 +701,63 @@ class OcaEpak extends CarrierModule
         Configuration::updateValue(self::CONFIG_PREFIX.'_POSTCODE', Tools::getValue('postcode'));
 
         return $this->displayConfirmation($this->l('Configuration saved'));
+    }
+
+    public function hookDisplayAdminOrder($params)
+    {
+        //**/unset($params['smarty']);
+        //**/Tools::dieObject($params, false);
+        //**/Tools::dieObject($params['cart']->id_carrier, false);
+        $op = OcaEpakOperative::getByFieldId('id_carrier', $params['cart']->id_carrier);
+        if (!$op)
+            return NULL;
+        $address = new Address($params['cart']->id_address_delivery);
+        $currency = new Currency($params['cart']->id_currency);
+        $order = new Order($params['id_order']);
+        $cartData = $this->getCartPhysicalData($params['cart']);
+        $shipping = $params['cart']->getTotalShippingCost(NULL, FALSE);
+        $totalToPay = Tools::ps_round($this->getTotalWithFee($shipping, $op->addfee), 2);
+        $paidFee = $totalToPay - $shipping;
+        try {
+            $response = $this->_getSoapClient()->Tarifar_Envio_Corporativo(array(
+                'PesoTotal' => $cartData['weight'],
+                'VolumenTotal' => $cartData['volume'],
+                'CodigoPostalOrigen' => Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'),
+                'CodigoPostalDestino' => $this->cleanPostcode($address->postcode),
+                'CantidadPaquetes' => 1,
+                'Cuit' => Configuration::get(self::CONFIG_PREFIX.'_CUIT'),
+                'Operativa' => $op->reference
+            ));
+            $xml = new SimpleXMLElement($response->Tarifar_Envio_CorporativoResult->any);
+            if (!$xml->count())
+                throw new Exception($this->l('No results received from OCA webservice'));
+            $data = $xml->NewDataSet->Table;
+            $quote = Tools::ps_round($this->convertCurrencyFromArs($data->Precio, $params['cart']->id_currency), 2);
+        } catch (Exception $e) {
+            $quote = $e->getMessage();
+        }
+
+        ob_start();
+        ?>
+<!--        <fieldset class="panel" style="width: 400px; position: relative; left: 10px; margin-top: 26px;">-->
+        <fieldset class="panel" >
+            <legend><img src="../modules/ocaepak/logo.gif" alt="logo" /><?php echo $this->l('OCA ePak Information'); ?></legend>
+            <?php echo $this->l('Operative') . ": {$op->reference}"; ?><br />
+            <?php echo $this->l('Calculated Order Weight') . ": {$cartData['weight']} kg"; ?><br />
+            <?php echo $this->l('Calculated Order Volume (with padding)') . ": {$cartData['volume']} cm³"; ?><br />
+            <?php if ($paidFee != 0):
+                echo $this->l('Additional fee') . ": {$currency->sign}{$paidFee}";
+            endif; ?><br />
+            <?php if (is_string($quote)): ?>
+                <div class="warn">
+                     <?php  echo $quote;  ?>
+                </div>
+            <?php  else: ?>
+                <?php echo $this->l('Live quote') . ": {$currency->sign}{$quote}"; ?><br />
+            <?php endif; ?>
+        </fieldset>
+        <?php
+        return ob_get_clean();
     }
 
     public function hookActionCartSave($params) { return NULL; }    ## @todo async price check
