@@ -12,6 +12,8 @@ class OcaEpakOperative extends ObjectModel
     public $reference;
     public $description;
     public $addfee;
+    public $type;
+    public $insured;
     public $id_shop;
 
     /**
@@ -26,6 +28,8 @@ class OcaEpakOperative extends ObjectModel
             'reference' =>	array('type' => self::TYPE_INT, 'validate' => 'isunsignedInt', 'required' => TRUE),
             'description' => array('type' => self::TYPE_STRING, 'validate' => 'isGenericName', 'required' => TRUE),
             'addfee' => array('type' => self::TYPE_STRING, 'validate' => 'isString', 'required' => FALSE),
+            'type' => array('type' => self::TYPE_STRING, 'validate' => 'isString', 'required' => true),
+            'insured' => array('type' => self::TYPE_STRING, 'validate' => 'isBool', 'required' => true),
             'id_shop' => array('type' => self::TYPE_INT, 'validate' => 'isunsignedInt', 'required' => true),
         )
     );
@@ -119,7 +123,7 @@ class OcaEpakOperative extends ObjectModel
 
     public static function getOperativeIds($filter_column=NULL, $filter_value=NULL)
     {
-        if (!is_null($filter_column) && !in_array($filter_column, array(OcaEpak::OPERATIVES_ID, 'id_carrier', 'reference', 'description', 'addfee', 'id_shop')))
+        if (!is_null($filter_column) && !in_array($filter_column, array(OcaEpak::OPERATIVES_ID, 'id_carrier', 'reference', 'description', 'addfee', 'id_shop', 'type')))
             return false;
         ob_start(); ?>
             SELECT `<?php echo OcaEpak::OPERATIVES_ID; ?>`
