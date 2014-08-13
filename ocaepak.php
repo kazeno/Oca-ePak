@@ -162,6 +162,8 @@ class OcaEpak extends CarrierModule
     {
         if (Tools::isSubmit('addOcaOperative'))
             return $this->getAddOperativeContent();
+        elseif (Tools::isSubmit('updateocae_operatives'))
+            return $this->getAddOperativeContent((int)Tools::getValue('id_ocae_operatives'));
         elseif (Tools::isSubmit('deleteocae_operatives'))        {
             $op = new OcaEpakOperative((int)Tools::getValue('id_ocae_operatives'));
             $ref = $op->reference;
@@ -171,16 +173,25 @@ class OcaEpak extends CarrierModule
                 : $this->displayError('Error deleting OCA Operative')
             );
         } elseif (Tools::isSubmit('saveOcaOperative')) {
-            $op = new OcaEpakOperative();
+            if (Tools::getIsset(self::OPERATIVES_ID)) {
+                $op = new OcaEpakOperative(Tools::getValue(self::OPERATIVES_ID));
+                $confirm = $this->l('OCA Operative has been successfully updated');
+            } else {
+                $op = new OcaEpakOperative();
+                $confirm = $this->l('New OCA Operative and its carrier have been successfully created');
+            }
+            //**/Tools::dieObject($op);
             $op->reference = Tools::getValue('reference');
             $op->id_shop = $this->context->shop->id;
             $op->description = Tools::getValue('description');
             $op->addfee = Tools::getValue('addfee');
+            $op->type = Tools::getValue('type');
+            $op->insured = (bool)Tools::getValue('insured');
             $val = $op->validateFields(FALSE, TRUE);
             if ($val !== TRUE)
                 return $this->displayError($this->_makeErrorFriendly($val)).$this->getAddOperativeContent();
             $op->save();
-            $this->_addToHeader($this->displayConfirmation($this->l('New OCA Operative and its carrier have been successfully created')));
+            $this->_addToHeader($this->displayConfirmation($confirm));
         } elseif (Tools::isSubmit('submitOcaepak'))
             $this->_addToHeader(($error = $this->_getErrors()) ? $error : $this->_saveConfig());
         if (Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_EMAIL')) && Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'))&& Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')) && Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'_CUIT')) && ($ops = OcaEpakOperative::getOperativeIds())) {
@@ -245,26 +256,30 @@ class OcaEpak extends CarrierModule
                             'type' => 'text',
                             'label' => $this->l('Email'),
                             'name' => 'email',
-                            'class' => 'fixed-width-xxl'
+                            'class' => 'fixed-width-xxl',
+                            'required' => true
                         ),
                         array(
                             'type' => 'text',
                             'label' => $this->l('Password'),
                             'name' => 'password',
                             'class' => 'fixed-width-xxl',
+                            'required' => true
                         ),
                         array(
                             'type' => 'text',
                             'label' => $this->l('OCA Account Number'),
                             'name' => 'account',
                             'class' => 'fixed-width-xxl',
-                            'desc' => $this->l('You can find your account number by logging into your OCA account and going to the following URL').': <br /><a href="http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>'
+                            'desc' => $this->l('You can find your account number by logging into your OCA account and going to the following URL').': <br /><a href="http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>',
+                            'required' => true
                         ),
                         array(
                             'type' => 'text',
                             'label' => $this->l('CUIT'),
                             'name' => 'cuit',
-                            'class' => 'fixed-width-lg'
+                            'class' => 'fixed-width-lg',
+                            'required' => true
                         ),
                         array(
                             'type' => 'hidden',
@@ -277,6 +292,42 @@ class OcaEpak extends CarrierModule
                         array(
                             'type' => 'hidden',
                             'name' => 'postcode',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'street',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'number',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'floor',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'apartment',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'locality',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'province',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'contact',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'requestor',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'observations',
                         ),
                         array(
                             'type' => 'hidden',
@@ -330,7 +381,8 @@ class OcaEpak extends CarrierModule
                             'label' => $this->l('Origin Post Code'),
                             'name' => 'postcode',
                             'class' => 'fixed-width-lg',
-                            'desc' => $this->l('The post code from where shipments will be made (only digits)')
+                            'desc' => $this->l('The post code from where shipments will be made (only digits)'),
+                            'required' => true
 
                         ),
                         array(
@@ -366,7 +418,7 @@ class OcaEpak extends CarrierModule
                             'maxlength' => 100,
                             'label' => $this->l('Observations'),
                             'name' => 'observations',
-                            'class' => 'fixed-width-xl',
+                            'class' => 'fixed-width-xxxxl',
                         ),
                     ),
                 )
@@ -386,21 +438,24 @@ class OcaEpak extends CarrierModule
                             'label' => $this->l('Default Weight'),
                             'name' => 'defweight',
                             'class' => 'fixed-width-xxl',
-                            'desc' => $this->l('Weight to use for products without registered weight data, in kg')
+                            'desc' => $this->l('Weight to use for products without registered weight data, in kg'),
+                            'required' => true
                         ),
                         array(
                             'type' => 'text',
                             'label' => $this->l('Default Volume'),
                             'name' => 'defvolume',
                             'class' => 'fixed-width-xxl',
-                            'desc' => $this->l('Volume to use for products without registered size data, in cubic cm')
+                            'desc' => $this->l('Volume to use for products without registered size data, in cubic cm'),
+                            'required' => true
                         ),
                         array(
                             'type' => 'text',
                             'label' => $this->l('Failsafe Shipping Cost'),
                             'name' => 'failcost',
                             'class' => 'fixed-width-xxl',
-                            'desc' => $this->l('This is the shipping cost that will be used in the unlikely event the OCA server is down and we cannot get an online quote')
+                            'desc' => $this->l('This is the shipping cost that will be used in the unlikely event the OCA server is down and we cannot get an online quote'),
+                            'required' => true
                         ),
                         array(
                             'type' => 'hidden',
@@ -413,6 +468,10 @@ class OcaEpak extends CarrierModule
                         array(
                             'type' => 'hidden',
                             'name' => 'cuit',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'account',
                         ),
                     ),
                     'submit' => array(
@@ -431,6 +490,15 @@ class OcaEpak extends CarrierModule
             'defweight' => Tools::getValue('defweight', Configuration::get(self::CONFIG_PREFIX.'_DEFWEIGHT')),
             'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'_DEFVOLUME')),
             'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')),
+            'street' => Tools::getValue('street', Configuration::get(self::CONFIG_PREFIX.'_STREET')),
+            'number' => Tools::getValue('number', Configuration::get(self::CONFIG_PREFIX.'_NUMBER')),
+            'floor' => Tools::getValue('floor', Configuration::get(self::CONFIG_PREFIX.'_FLOOR')),
+            'apartment' => Tools::getValue('apartment', Configuration::get(self::CONFIG_PREFIX.'_APARTMENT')),
+            'locality' => Tools::getValue('locality', Configuration::get(self::CONFIG_PREFIX.'_LOCALITY')),
+            'province' => Tools::getValue('province', Configuration::get(self::CONFIG_PREFIX.'_PROVINCE')),
+            'contact' => Tools::getValue('contact', Configuration::get(self::CONFIG_PREFIX.'_CONTACT')),
+            'requestor' => Tools::getValue('requestor', Configuration::get(self::CONFIG_PREFIX.'_REQUESTOR')),
+            'observations' => Tools::getValue('observations', Configuration::get(self::CONFIG_PREFIX.'_OBSERVATIONS')),
             'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'_FAILCOST')),
         );
 
@@ -450,7 +518,7 @@ class OcaEpak extends CarrierModule
         return $this->guiHeader.$helper->generateForm($fields_form1).$this->renderOperativesList().$helper->generateForm($fields_form2);
     }
 
-    public function getAddOperativeContent()
+    public function getAddOperativeContent($operativeId = NULL)
     {
         $fields_form = array(
             array(
@@ -545,6 +613,42 @@ class OcaEpak extends CarrierModule
                         ),
                         array(
                             'type' => 'hidden',
+                            'name' => 'street',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'number',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'floor',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'apartment',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'locality',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'province',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'contact',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'requestor',
+                        ),
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'observations',
+                        ),
+                        array(
+                            'type' => 'hidden',
                             'name' => 'failcost',
                         ),
                     ),
@@ -561,22 +665,47 @@ class OcaEpak extends CarrierModule
                 )
             ),
         );
-        $fields_value = array(
-            'reference' => Tools::getValue('reference', ''),
-            'description' => Tools::getValue('description', ''),
-            'addfee' => Tools::getValue('addfee', '0.00%'),
-            'type' => Tools::getValue('type', 'PaP'),
-            'insured' => Tools::getValue('insured', false),
-
-            //Preserve previously input data:
-            'account' => Tools::getValue('account', Configuration::get(self::CONFIG_PREFIX.'_ACCOUNT')),
-            'email' => Tools::getValue('email', Configuration::get(self::CONFIG_PREFIX.'_EMAIL')),
-            'password' => Tools::getValue('password', Configuration::get(self::CONFIG_PREFIX.'_PASSWORD')),
-            'cuit' => Tools::getValue('cuit', Configuration::get(self::CONFIG_PREFIX.'_CUIT')),
-            'defweight' => Tools::getValue('defweight', Configuration::get(self::CONFIG_PREFIX.'_DEFWEIGHT')),
-            'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'_DEFVOLUME')),
-            'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')),
-            'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'_FAILCOST')),
+        if ($operativeId) {
+            $fields_form[0]['form']['input'][] = array('type' => 'hidden', 'name' => self::OPERATIVES_ID);
+            $op = new OcaEpakOperative($operativeId);
+            $fields = array(
+                self::OPERATIVES_ID => Tools::getValue(self::OPERATIVES_ID, $operativeId),
+                'reference' => Tools::getValue('reference', $op->reference),
+                'description' => Tools::getValue('description', $op->description),
+                'addfee' => Tools::getValue('addfee', $op->addfee),
+                'type' => Tools::getValue('type', $op->type),
+                'insured' => Tools::getValue('insured', $op->insured),
+            );
+        } else {
+            $fields = array(
+                'reference' => Tools::getValue('reference', ''),
+                'description' => Tools::getValue('description', ''),
+                'addfee' => Tools::getValue('addfee', '0.00%'),
+                'type' => Tools::getValue('type', 'PaP'),
+                'insured' => Tools::getValue('insured', false),
+            );
+        }
+        $fields_value = array_merge(
+            array(
+                //Preserve previously input data:
+                'account' => Tools::getValue('account', Configuration::get(self::CONFIG_PREFIX.'_ACCOUNT')),
+                'email' => Tools::getValue('email', Configuration::get(self::CONFIG_PREFIX.'_EMAIL')),
+                'password' => Tools::getValue('password', Configuration::get(self::CONFIG_PREFIX.'_PASSWORD')),
+                'cuit' => Tools::getValue('cuit', Configuration::get(self::CONFIG_PREFIX.'_CUIT')),
+                'defweight' => Tools::getValue('defweight', Configuration::get(self::CONFIG_PREFIX.'_DEFWEIGHT')),
+                'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'_DEFVOLUME')),
+                'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')),
+                'street' => Tools::getValue('street', Configuration::get(self::CONFIG_PREFIX.'_STREET')),
+                'number' => Tools::getValue('number', Configuration::get(self::CONFIG_PREFIX.'_NUMBER')),
+                'floor' => Tools::getValue('floor', Configuration::get(self::CONFIG_PREFIX.'_FLOOR')),
+                'apartment' => Tools::getValue('apartment', Configuration::get(self::CONFIG_PREFIX.'_APARTMENT')),
+                'locality' => Tools::getValue('locality', Configuration::get(self::CONFIG_PREFIX.'_LOCALITY')),
+                'province' => Tools::getValue('province', Configuration::get(self::CONFIG_PREFIX.'_PROVINCE')),
+                'contact' => Tools::getValue('contact', Configuration::get(self::CONFIG_PREFIX.'_CONTACT')),
+                'requestor' => Tools::getValue('requestor', Configuration::get(self::CONFIG_PREFIX.'_REQUESTOR')),
+                'observations' => Tools::getValue('observations', Configuration::get(self::CONFIG_PREFIX.'_OBSERVATIONS')),
+                'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'_FAILCOST')),
+            ), $fields
         );
 
         $helper = new HelperForm();
@@ -622,6 +751,11 @@ class OcaEpak extends CarrierModule
                 'type' => 'bool',
                 'search' => false,
                 'orderby' => false,
+                'icon' => array(
+                    0 => 'disabled.gif',
+                    1 => 'enabled.gif',
+                    'default' => 'disabled.gif'
+                ),
             ),
             'addfee' => array(
                 'title' => $this->l('Charged Additional Fee'),
@@ -646,7 +780,7 @@ class OcaEpak extends CarrierModule
         $helper->table = self::OPERATIVES_TABLE;
         $helper->currentIndex = AdminController::$currentIndex.'&configure='.$this->name;
         $helper->token = Tools::getAdminTokenLite('AdminModules');
-        $helper->actions = array('delete');
+        $helper->actions = array('edit', 'delete');
         $helper->show_toolbar = TRUE;
         $helper->no_link = TRUE;
         $helper->toolbar_btn['new'] =  array(
@@ -666,6 +800,7 @@ class OcaEpak extends CarrierModule
 
     protected function _getErrors()
     {
+        //**/Tools::dieObject($_POST);
         $error = '';
         if (!Tools::strlen(trim(Tools::getValue('account'))))
             $error .= $this->displayError($this->l('Invalid account number'));
@@ -699,6 +834,15 @@ class OcaEpak extends CarrierModule
         Configuration::updateValue(self::CONFIG_PREFIX.'_DEFVOLUME', Tools::getValue('defvolume'));
         Configuration::updateValue(self::CONFIG_PREFIX.'_FAILCOST', Tools::getValue('failcost'));
         Configuration::updateValue(self::CONFIG_PREFIX.'_POSTCODE', Tools::getValue('postcode'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_STREET', Tools::getValue('street'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_NUMBER', Tools::getValue('number'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_FLOOR', Tools::getValue('floor'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_APARTMENT', Tools::getValue('apartment'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_LOCALITY', Tools::getValue('locality'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_PROVINCE', Tools::getValue('province'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_CONTACT', Tools::getValue('contact'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_REQUESTOR', Tools::getValue('requestor'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'_OBSERVATIONS', Tools::getValue('observations'));
 
         return $this->displayConfirmation($this->l('Configuration saved'));
     }
@@ -739,9 +883,113 @@ class OcaEpak extends CarrierModule
 
         ob_start();
         ?>
+        <div class="panel" id="oca-box-1">
+            <div class="panel-heading"><?php echo $this->l('Box'); ?> <span>1</span></div>
+            <?php echo $this->l('Dimensions'); ?>:
+            <input type="text" name="oca-box-l-1" id="oca-box-l-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
+            <input type="text" name="oca-box-d-1" id="oca-box-d-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
+            <input type="text" name="oca-box-h-1" id="oca-box-h-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
+            <input type="text" name="oca-box-w-1" id="oca-box-w-1" value="" class="fixed-width-sm" style="display: inline-block;"> kg
+            <br><?php echo $this->l('Declared value'); ?>: $<input type="text" name="oca-box-v-1" id="oca-box-v-1" value="" class="fixed-width-sm" style="display: inline-block;">
+        </div>
+        <div class="row-margin-bottom row-margin-top order_action">
+            <button id="add_oca_box" class="btn btn-default" type="button">
+                <i class="icon-plus"></i>
+                <?php echo $this->l('Add a new box'); ?>
+            </button>
+        </div>
+        <script>//<!--
+            (function() {
+                var $box = $('#oca-box-1');
+                var boxnum = 1;
+                $('#add_oca_box').click(function() {
+                    boxnum += 1;
+                    var $newbox = $box.clone().attr('id', 'oca-box-'+boxnum);
+                    $newbox.find('input').each(function(){
+                        /**/console.log($(this).attr('name'));
+                        var split = $(this).attr('name').lastIndexOf('-')-1;
+                        /**/console.log(split);
+                        $(this).attr('name', $(this).attr('name').substr(0,split)+boxnum);
+                        $(this).attr('id', $(this).attr('id').substr(0,split)+boxnum);
+                    });
+                    $newbox.find('.panel-heading>span').html(boxnum);
+                    $('#add_oca_box').parent().before($newbox);
+                });
+            })();
+        //--></script>
+        <?php
+        $boxBox = ob_get_clean();
+        $fields_form = array(
+            'form' => array(
+                'form' => array(
+                    'id_form' => 'oca-form',
+                    'legend' => array(
+                        'title' => '1. '.$this->l('OCA Pick-up Order Generator')
+                    ),
+                    'input' => array(
+                        array(
+                            'type' => 'select',
+                            'label' => $this->l('Time slot'),
+                            'name' => 'oca-time',
+                            'options' => array(
+                                'query' => array(
+                                    array('value' =>'1', 'text' =>'8-17'),
+                                    array('value' =>'2', 'text' =>'8-12'),
+                                    array('value' =>'3', 'text' =>'14-17'),
+                                ),
+                                'id' => 'value',
+                                'name' => 'text'
+                            ),
+                        ),
+                        array(
+                            'type' => 'textarea',
+                            'label' => $this->l('Observations'),
+                            'name' => 'oca-observations',
+                            'cols' => '50',
+                            'rows' => '2',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'label' => $this->l('Days for pick-up'),
+                            'name' => 'oca-days',
+                            'class' => 'fixed-width-lg',
+                        ),
+                        array(
+                            'type' => 'free',
+                            'name' => 'boxes',
+                            'label' => $this->l('Packaging'),
+                        ),
+                    ),
+                    'submit' => array(
+                        'title' => $this->l('Generate OCA Pick-up Order'),
+                    ),
+                )
+            ),
+        );
+        $fields_value = array(
+            'oca-time' => Tools::getValue('oca-time', 1),
+            'oca-observations' => Tools::getValue('oca-observations', ''),
+            'oca-days' => Tools::getValue('oca-days', ''),
+            'boxes' => $boxBox,
+        );
+        $helper = new HelperForm();
+        $helper->module = $this;
+        $helper->title = $this->displayName;
+        $helper->name_controller = $this->name;
+        $helper->identifier = $this->identifier;
+        $helper->token = Tools::getAdminTokenLite('AdminModules');
+        /**/$helper->currentIndex = _PS_VERSION_ < '1.5' ? "index.php?tab=AdminModules&configure={$this->name}" : $this->context->link->getAdminLink('AdminModules', false).'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name;
+        $lang = new Language((int)Configuration::get('PS_LANG_DEFAULT'));
+        $helper->default_form_language = $lang->id;
+        $helper->show_toolbar = false;
+        $helper->submit_action = '';
+        $helper->fields_value = $fields_value;
+
+        ob_start();
+        ?>
 <!--        <fieldset class="panel" style="width: 400px; position: relative; left: 10px; margin-top: 26px;">-->
         <fieldset class="panel" >
-            <legend><img src="../modules/ocaepak/logo.gif" alt="logo" /><?php echo $this->l('OCA ePak Information'); ?></legend>
+            <legend><img src="../modules/<?php echo self::MODULE_NAME; ?>/logo.gif" alt="logo" /><?php echo $this->l('OCA ePak Information'); ?></legend>
             <?php echo $this->l('Operative') . ": {$op->reference}"; ?><br />
             <?php echo $this->l('Calculated Order Weight') . ": {$cartData['weight']} kg"; ?><br />
             <?php echo $this->l('Calculated Order Volume (with padding)') . ": {$cartData['volume']} cm³"; ?><br />
@@ -755,6 +1003,7 @@ class OcaEpak extends CarrierModule
             <?php  else: ?>
                 <?php echo $this->l('Live quote') . ": {$currency->sign}{$quote}"; ?><br />
             <?php endif; ?>
+            <?php  echo $helper->generateForm($fields_form);  ?>
         </fieldset>
         <?php
         return ob_get_clean();
