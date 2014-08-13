@@ -4,6 +4,9 @@
  * @file-version 0.1
  */
 
+if (!defined('_PS_VERSION_'))
+    exit;
+
 function upgrade_module_1_0_3($module) {
     // Process Module upgrade for generate OCA order functionality
     return (
@@ -13,7 +16,7 @@ function upgrade_module_1_0_3($module) {
             ADD COLUMN `insured` INT UNSIGNED NULL'
         ) AND
         Db::getInstance()->execute(
-            'UPDATE `' . _DB_PREFIX_ . OcaEpak::OPERATIVES_TABLE . '` SET type = "PaP" WHERE 1'
+            'UPDATE `' . _DB_PREFIX_ . OcaEpak::OPERATIVES_TABLE . '` SET type = "PaP", insured = "0" WHERE 1'
         ) AND
         Db::getInstance()->execute(
             'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . OcaEpak::ORDERS_TABLE . '` (
