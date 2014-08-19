@@ -22,6 +22,23 @@ class OcaEpak extends CarrierModule
     const QUOTES_ID = 'id_ocae_quotes';             //DB table id for quotes
     const ORDERS_TABLE = 'ocae_orders';             //DB table for orders
     const ORDERS_ID = 'id_ocae_orders';             //DB table id for orders
+    const OCA_NAME_LENGTH = 30;
+    const OCA_STREET_LENGTH = 30;
+    const OCA_NUMBER_LENGTH = 5;
+    const OCA_FLOOR_LENGTH = 6;
+    const OCA_APARTMENT_LENGTH = 4;
+    const OCA_POSTCODE_LENGTH = 4;
+    const OCA_LOCALITY_LENGTH = 30;
+    const OCA_PROVINCE_LENGTH = 30;
+    const OCA_CONTACT_LENGTH = 30;
+    const OCA_EMAIL_LENGTH = 100;
+    const OCA_REQUESTOR_LENGTH = 30;
+    const OCA_PHONE_LENGTH = 30;
+    const OCA_MOBILE_LENGTH = 15;
+    const OCA_OBSERVATIONS_LENGTH = 100;
+    const OCA_OPERATIVE_LENGTH = 6;
+    const OCA_REMIT_LENGTH = 30;
+    const OCA_ATTR_LENGTH = 11;
     const TRACKING_URL = 'https://www1.oca.com.ar/OEPTrackingWeb/trackingenvio.asp?numero1=@';
     const OCA_URL = 'http://webservice.oca.com.ar/oep_tracking/Oep_Track.asmx?WSDL';
 
@@ -42,6 +59,7 @@ class OcaEpak extends CarrierModule
         $this->module_key = '8ba7bceea44707dc9d6043606694cea5';
         $this->bootstrap = true;
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOperative.php";
+        include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOrder.php";
 
         parent::__construct();
         $this->displayName = 'OCA e-Pak';
@@ -847,50 +865,22 @@ class OcaEpak extends CarrierModule
         return $this->displayConfirmation($this->l('Configuration saved'));
     }
 
-    public function hookDisplayAdminOrder($params)
+    public function renderOrderGeneratorForm()
     {
-        //**/unset($params['smarty']);
-        //**/Tools::dieObject($params, false);
-        //**/Tools::dieObject($params['cart']->id_carrier, false);
-        $op = OcaEpakOperative::getByFieldId('id_carrier', $params['cart']->id_carrier);
-        if (!$op)
-            return NULL;
-        $address = new Address($params['cart']->id_address_delivery);
-        $currency = new Currency($params['cart']->id_currency);
-        $order = new Order($params['id_order']);
-        $cartData = $this->getCartPhysicalData($params['cart']);
-        $shipping = $params['cart']->getTotalShippingCost(NULL, FALSE);
-        $totalToPay = Tools::ps_round($this->getTotalWithFee($shipping, $op->addfee), 2);
-        $paidFee = $totalToPay - $shipping;
-        try {
-            $response = $this->_getSoapClient()->Tarifar_Envio_Corporativo(array(
-                'PesoTotal' => $cartData['weight'],
-                'VolumenTotal' => $cartData['volume'],
-                'CodigoPostalOrigen' => Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'),
-                'CodigoPostalDestino' => $this->cleanPostcode($address->postcode),
-                'CantidadPaquetes' => 1,
-                'Cuit' => Configuration::get(self::CONFIG_PREFIX.'_CUIT'),
-                'Operativa' => $op->reference
-            ));
-            $xml = new SimpleXMLElement($response->Tarifar_Envio_CorporativoResult->any);
-            if (!$xml->count())
-                throw new Exception($this->l('No results received from OCA webservice'));
-            $data = $xml->NewDataSet->Table;
-            $quote = Tools::ps_round($this->convertCurrencyFromArs($data->Precio, $params['cart']->id_currency), 2);
-        } catch (Exception $e) {
-            $quote = $e->getMessage();
-        }
-
         ob_start();
         ?>
         <div class="panel" id="oca-box-1">
             <div class="panel-heading"><?php echo $this->l('Box'); ?> <span>1</span></div>
-            <?php echo $this->l('Dimensions'); ?>:
-            <input type="text" name="oca-box-l-1" id="oca-box-l-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
-            <input type="text" name="oca-box-d-1" id="oca-box-d-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
-            <input type="text" name="oca-box-h-1" id="oca-box-h-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
-            <input type="text" name="oca-box-w-1" id="oca-box-w-1" value="" class="fixed-width-sm" style="display: inline-block;"> kg
-            <br><?php echo $this->l('Declared value'); ?>: $<input type="text" name="oca-box-v-1" id="oca-box-v-1" value="" class="fixed-width-sm" style="display: inline-block;">
+            <div class="form-group">
+                <?php echo $this->l('Dimensions'); ?>:
+                <input type="text" name="oca-box-l-1" id="oca-box-l-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
+                <input type="text" name="oca-box-d-1" id="oca-box-d-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
+                <input type="text" name="oca-box-h-1" id="oca-box-h-1" value="" class="fixed-width-sm" style="display: inline-block;"> cm ×
+                <input type="text" name="oca-box-w-1" id="oca-box-w-1" value="" class="fixed-width-sm" style="display: inline-block;"> kg
+            </div>
+            <div class="form-group">
+                <?php echo $this->l('Declared value'); ?>: $<input type="text" name="oca-box-v-1" id="oca-box-v-1" value="" class="fixed-width-sm" style="display: inline-block;">
+            </div>
         </div>
         <div class="row-margin-bottom row-margin-top order_action">
             <button id="add_oca_box" class="btn btn-default" type="button">
@@ -907,7 +897,7 @@ class OcaEpak extends CarrierModule
                     var $newbox = $box.clone().attr('id', 'oca-box-'+boxnum);
                     $newbox.find('input').each(function(){
                         /**/console.log($(this).attr('name'));
-                        var split = $(this).attr('name').lastIndexOf('-')-1;
+                        var split = $(this).attr('name').lastIndexOf('-')+1;
                         /**/console.log(split);
                         $(this).attr('name', $(this).attr('name').substr(0,split)+boxnum);
                         $(this).attr('id', $(this).attr('id').substr(0,split)+boxnum);
@@ -916,7 +906,7 @@ class OcaEpak extends CarrierModule
                     $('#add_oca_box').parent().before($newbox);
                 });
             })();
-        //--></script>
+            //--></script>
         <?php
         $boxBox = ob_get_clean();
         $fields_form = array(
@@ -941,13 +931,13 @@ class OcaEpak extends CarrierModule
                                 'name' => 'text'
                             ),
                         ),
-                        array(
+                        /*array(
                             'type' => 'textarea',
                             'label' => $this->l('Observations'),
                             'name' => 'oca-observations',
                             'cols' => '50',
                             'rows' => '2',
-                        ),
+                        ),*/
                         array(
                             'type' => 'text',
                             'label' => $this->l('Days for pick-up'),
@@ -962,13 +952,14 @@ class OcaEpak extends CarrierModule
                     ),
                     'submit' => array(
                         'title' => $this->l('Generate OCA Pick-up Order'),
+                        'name' => 'oca-order-submit'
                     ),
                 )
             ),
         );
         $fields_value = array(
             'oca-time' => Tools::getValue('oca-time', 1),
-            'oca-observations' => Tools::getValue('oca-observations', ''),
+            //'oca-observations' => Tools::getValue('oca-observations', ''),
             'oca-days' => Tools::getValue('oca-days', ''),
             'boxes' => $boxBox,
         );
@@ -977,13 +968,173 @@ class OcaEpak extends CarrierModule
         $helper->title = $this->displayName;
         $helper->name_controller = $this->name;
         $helper->identifier = $this->identifier;
-        $helper->token = Tools::getAdminTokenLite('AdminModules');
-        /**/$helper->currentIndex = _PS_VERSION_ < '1.5' ? "index.php?tab=AdminModules&configure={$this->name}" : $this->context->link->getAdminLink('AdminModules', false).'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name;
+        $helper->token = Tools::getAdminTokenLite('AdminOrders');
+        $helper->currentIndex = 'index.php?controller=AdminOrders&id_order='.Tools::getValue('id_order').'&vieworder';
         $lang = new Language((int)Configuration::get('PS_LANG_DEFAULT'));
         $helper->default_form_language = $lang->id;
         $helper->show_toolbar = false;
         $helper->submit_action = '';
         $helper->fields_value = $fields_value;
+
+        return $this->guiHeader.$helper->generateForm($fields_form);
+    }
+
+    public function hookDisplayAdminOrder($params)
+    {
+        //**/unset($params['smarty']);
+        //**/Tools::dieObject($params, false);
+        //**/Tools::dieObject($params['cart']->id_carrier, false);
+        $op = OcaEpakOperative::getByFieldId('id_carrier', $params['cart']->id_carrier);
+        if (!$op)
+            return NULL;
+        $address = new Address($params['cart']->id_address_delivery);
+        $currency = new Currency($params['cart']->id_currency);
+        $order = new Order($params['id_order']);
+        $customer = new Customer($order->id_customer);
+        $cartData = $this->getCartPhysicalData($params['cart']);
+        $shipping = $params['cart']->getTotalShippingCost(NULL, FALSE);
+        $totalToPay = Tools::ps_round($this->getTotalWithFee($shipping, $op->addfee), 2);
+        $paidFee = $totalToPay - $shipping;
+        try {
+            $response = $this->_getSoapClient()->Tarifar_Envio_Corporativo(array(
+                'PesoTotal' => $cartData['weight'],
+                'VolumenTotal' => $cartData['volume'],
+                'CodigoPostalOrigen' => Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'),
+                'CodigoPostalDestino' => $this->cleanPostcode($address->postcode),
+                'CantidadPaquetes' => 1,
+                'Cuit' => Configuration::get(self::CONFIG_PREFIX.'_CUIT'),
+                'Operativa' => $op->reference
+            ));
+            $xml = new SimpleXMLElement($response->Tarifar_Envio_CorporativoResult->any);
+            if (!$xml->count())
+                throw new Exception($this->l('No results received from OCA webservice'));
+            $data = $xml->NewDataSet->Table;
+            $quote = Tools::ps_round($this->convertCurrencyFromArs($data->Precio, $params['cart']->id_currency), 2);
+        } catch (Exception $e) {
+            $quote = $e->getMessage();
+        }
+
+        if (Tools::isSubmit('oca-order-submit')) {
+            if ($preOrder = $this->_getValidateOcaForm()) {
+                $costCenter = 0;
+                $ocaAddress = $this->_parseOcaAddress($address);        ## @todo exception handler
+                /*ob_start();
+                ?>
+                <ROWS>
+                    <cabecera ver="1.0" nrocuenta="<?php  echo Configuration::get(self::CONFIG_PREFIX.'_ACCOUNT');  ?>"/>
+                    <retiro
+                        calle="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_STREET'));  ?>"
+                        nro="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_NUMBER'));  ?>"
+                        piso="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_FLOOR'));  ?>"
+                        depto="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_APARTMENT'));  ?>"
+                        cp="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'));  ?>"
+                        localidad="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_LOCALITY'));  ?>"
+                        provincia="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_PROVINCE'));  ?>"
+                        contacto="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_CONTACT'));  ?>"
+                        email="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_EMAIL'));  ?>"
+                        solicitante="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_REQUESTOR'));  ?>"
+                        observaciones="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_OBSERVATIONS'));  ?>"
+                        centrocosto="<?php  echo htmlspecialchars($costCenter);  ?>"
+                        />
+                    <envios>
+                        <envio idoperativa="<?php  echo htmlspecialchars($op->reference);  ?>" nroremito="<?php  echo htmlspecialchars($order->id);  ?>" >
+                            <destinatario
+                                apellido="<?php  echo htmlspecialchars($address->lastname);  ?>"
+                                nombre="<?php  echo htmlspecialchars($address->firstname);  ?>"
+                                calle="<?php  echo htmlspecialchars($ocaAddress['street']);  ?>"
+                                nro="<?php  echo htmlspecialchars($ocaAddress['number']);  ?>"
+                                piso=""
+                                depto=""
+                                cp="<?php  echo htmlspecialchars($this->cleanPostcode($address->postcode));  ?>"
+                                localidad="<?php  echo htmlspecialchars($address->city);  ?>"
+                                provincia="<?php  echo htmlspecialchars($address->id_state > 0 ? State::getNameById($address->id_state) : '');  ?>"
+                                telefono="<?php  echo htmlspecialchars($address->phone);  ?>"
+                                email="<?php  echo htmlspecialchars($customer->email);  ?>"
+                                idci=""
+                                celular="<?php  echo htmlspecialchars($address->phone_mobile);  ?>"
+                                />
+                            <paquetes>
+                              <?php  foreach ($preOrder['boxes'] as $box) :  ?>
+                                <paquete alto="<?php  echo htmlspecialchars($box['h']);  ?>" ancho="<?php  echo htmlspecialchars($box['d']);  ?>" largo="<?php  echo htmlspecialchars($box['l']);  ?>" peso="<?php  echo htmlspecialchars($box['w']);  ?>" valor="<?php  echo htmlspecialchars($box['v']);  ?>" cant="1" />
+                              <?php  endforeach;  ?>
+                            </paquetes>
+                        </envio>
+                    </envios>
+                </ROWS>
+                <?php*/
+                ob_start();
+                ?>
+                <ROWS>
+                    <cabecera ver="1.0" nrocuenta="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_ACCOUNT'), 10);  ?>" />
+                    <retiro calle="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_STREET'), self::OCA_STREET_LENGTH);  ?>" nro="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_NUMBER'), self::OCA_NUMBER_LENGTH);  ?>" piso="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_FLOOR'), self::OCA_FLOOR_LENGTH);  ?>" depto="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_APARTMENT'), self::OCA_APARTMENT_LENGTH);  ?>" cp="<?php  echo htmlspecialchars(Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'));  ?>" localidad="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_LOCALITY'), self::OCA_LOCALITY_LENGTH);  ?>" provincia="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_PROVINCE'), self::OCA_PROVINCE_LENGTH);  ?>" contacto="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_CONTACT'), self::OCA_CONTACT_LENGTH);  ?>" email="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_EMAIL'), self::OCA_EMAIL_LENGTH);  ?>" solicitante="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_REQUESTOR'), self::OCA_REQUESTOR_LENGTH);  ?>" observaciones="<?php  echo $this->_cleanOcaAttribute(Configuration::get(self::CONFIG_PREFIX.'_OBSERVATIONS'), self::OCA_OBSERVATIONS_LENGTH);  ?>" centrocosto="0" />
+                    <envios>
+                        <envio idoperativa="<?php  echo $this->_cleanOcaAttribute($op->reference, self::OCA_OPERATIVE_LENGTH);  ?>" nroremito="<?php  echo $this->_cleanOcaAttribute($order->id, self::OCA_REMIT_LENGTH);  ?>">
+                            <destinatario apellido="<?php  echo $this->_cleanOcaAttribute($address->lastname, self::OCA_NAME_LENGTH);  ?>" nombre="<?php  echo $this->_cleanOcaAttribute($address->firstname, self::OCA_NAME_LENGTH);  ?>" calle="<?php  echo $ocaAddress['street'];  ?>" nro="<?php  echo $ocaAddress['number'];  ?>" piso="-" depto="-" cp="<?php  echo $this->_cleanOcaAttribute($this->cleanPostcode($address->postcode), self::OCA_POSTCODE_LENGTH);  ?>" localidad="<?php  echo $this->_cleanOcaAttribute($address->city, self::OCA_LOCALITY_LENGTH);  ?>" provincia="<?php  echo $this->_cleanOcaAttribute(($address->id_state > 0 ? State::getNameById($address->id_state) : ''), self::OCA_PROVINCE_LENGTH);  ?>" telefono="<?php  echo $this->_cleanOcaAttribute($address->phone, self::OCA_PHONE_LENGTH);  ?>" email="<?php  echo $this->_cleanOcaAttribute($customer->email, self::OCA_EMAIL_LENGTH);  ?>" idci="0" celular="<?php  echo $this->_cleanOcaAttribute($address->phone_mobile, self::OCA_MOBILE_LENGTH);  ?>" observaciones="<?php  echo $ocaAddress['observations'];  ?>" />
+                            <paquetes>
+                        <?php  foreach ($preOrder['boxes'] as $box) :  ?>
+                                <paquete alto="<?php  echo $this->_cleanOcaAttribute($box['h'], self::OCA_ATTR_LENGTH);  ?>" ancho="<?php  echo $this->_cleanOcaAttribute($box['d'], self::OCA_ATTR_LENGTH);  ?>" largo="<?php  echo $this->_cleanOcaAttribute($box['l'], self::OCA_ATTR_LENGTH);  ?>" peso="<?php  echo $this->_cleanOcaAttribute($box['w'], self::OCA_ATTR_LENGTH);  ?>" valor="<?php  echo $this->_cleanOcaAttribute($box['v'], self::OCA_ATTR_LENGTH);  ?>" cant="1" />
+                        <?php  endforeach;  ?>
+                            </paquetes>
+                        </envio>
+                    </envios>
+                </ROWS>
+                <?php
+                $xmlRetiro = str_replace('> <', '><', preg_replace('~\s+~',' ','<?xml version="1.0"?>'.ob_get_clean()));
+                //**/Tools::dieObject($_POST);
+                //**/Tools::dieObject($xmlRetiro);
+                try {
+                    $response = $this->_getSoapClient()->IngresoOR(array(
+                        'usr' => Configuration::get(self::CONFIG_PREFIX.'_EMAIL'),
+                        'psw' => Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'),
+                        'XML_Retiro' => $xmlRetiro,
+                        'ConfirmarRetiro' => 0,
+                        'DiasRetiro' => $preOrder['days'],
+                        'FranjaHoraria' => $preOrder['time'],
+                    ));
+                    //**/Tools::dieObject($response);
+                    /*$response = '<diffgr:diffgram xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:diffgr="urn:schemas-microsoft-com:xml-diffgram-v1"><Resultado xmlns=""><Resumen diffgr:id="Resumen1" msdata:rowOrder="0"><CodigoOperacion>2458171</CodigoOperacion><FechaIngreso>2014-08-19T16:41:25.18-03:00</FechaIngreso><mailUsuario>info@abundance-store.com</mailUsuario><origen/><CantidadRegistros>1</CantidadRegistros><CantidadIngresados>1</CantidadIngresados><CantidadRechazados>0</CantidadRechazados></Resumen></Resultado></diffgr:diffgram>';
+                    //$xml = new SimpleXMLElement($response->IngresoORResult->any);
+                    $response = '<diffgr:diffgram xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:diffgr="urn:schemas-microsoft-com:xml-diffgram-v1"/>';*/
+                    $xml = new SimpleXMLElement($response->IngresoORResult->any);
+                    //**/$xml = new SimpleXMLElement($response);
+                    if (!$xml->count())
+                        throw new Exception('Error generating OCA order');
+                    $data = $xml->Resultado->Resumen;
+                    //**/Tools::dieObject($xml->count());
+                    //**/Tools::dieObject($data);
+                    $ocaOrder = new OcaEpakOrder();
+                    $ocaOrder->id_order = $order->id;
+                    $ocaOrder->reference = $data->CodigoOperacion;
+                    $ocaOrder->tracking = '';
+                    $ocaOrder->status = $this->l('Added to cart').": {$data->CantidadIngresados}; ".$this->l('Rejected').": {$data->CantidadRechazados}; ";
+                    $ocaOrder->save();
+                    unset($ocaOrder);
+                } catch (Exception $e) {
+                    /**/Tools::dieObject($response);
+                    //**/Tools::dieObject($e->getMessage());
+                    /**/Tools::dieObject('Error with generated xml: '.$xmlRetiro);
+                    //Logger::AddLog('Ocaepak: '.$this->l('error getting online price for cart')." {$cart->id}");
+                }
+            } else
+                $this->_addToHeader($this->l('There is an error in the OCA order generator form'));
+        }
+        if ($ocaOrder = OcaEpakOrder::getByFieldId('id_order', $order->id)) {
+            ob_start();
+            ?>
+            <div>
+                <?php echo $this->l('OCA Order Id') . ": {$ocaOrder->reference}"; ?><br />
+                <?php echo $this->l('Status') . ": {$ocaOrder->status}"; ?><br />
+                <?php echo $this->l('Tracking') . ": {$ocaOrder->tracking}"; ?><br />
+                Sticker Button goes here<br />
+                Cancel Order Button goes here<br />
+            </div>
+            <?php
+            $form = ob_get_clean();
+        } elseif (in_array(Tools::strtolower($op->type), array('pap')))
+            $form = $this->renderOrderGeneratorForm();
+        else
+            $form = $this->l('OCA order generator unavailable for this operative');
+        //Tools::dieObject($op->type);
 
         ob_start();
         ?>
@@ -1003,7 +1154,7 @@ class OcaEpak extends CarrierModule
             <?php  else: ?>
                 <?php echo $this->l('Live quote') . ": {$currency->sign}{$quote}"; ?><br />
             <?php endif; ?>
-            <?php  echo $helper->generateForm($fields_form);  ?>
+            <?php  echo $form;  ?>
         </fieldset>
         <?php
         return ob_get_clean();
@@ -1112,6 +1263,40 @@ class OcaEpak extends CarrierModule
         return strpos($fee, '%') ? $netAmount*(1+(float)Tools::substr($fee, 0, -1)/100) : $netAmount+(float)$fee;
     }
 
+    protected function _getValidateOcaForm()
+    {
+        if (
+            is_numeric(Tools::getValue('oca-time', false)) and
+            is_numeric(Tools::getValue('oca-box-l-1', false)) and
+            is_numeric(Tools::getValue('oca-box-d-1', false)) and
+            is_numeric(Tools::getValue('oca-box-h-1', false)) and
+            is_numeric(Tools::getValue('oca-box-w-1', false)) and
+            is_numeric(Tools::getValue('oca-box-v-1', false)) and
+            true
+        ) {
+            $form = array(
+                'time' => (int)Tools::getValue('oca-time'),
+                'days' => (int)Tools::getValue('oca-days', 0),
+                //'observations' => trim(Tools::getValue('oca-observations'), ''),
+                'boxes' => array()
+            );
+            $boxNum = 0;
+            while (Tools::getIsset('oca-box-l-'.($boxNum+1))) {
+                $boxNum++;
+                $form['boxes'][$boxNum] = array(
+                    'l' => number_format((float)Tools::getValue('oca-box-l-'.$boxNum), 2),
+                    'd' => number_format((float)Tools::getValue('oca-box-d-'.$boxNum), 2),
+                    'h' => number_format((float)Tools::getValue('oca-box-h-'.$boxNum), 2),
+                    'w' => number_format((float)Tools::getValue('oca-box-w-'.$boxNum), 2),
+                    'v' => number_format((float)Tools::getValue('oca-box-v-'.$boxNum), 2),
+                );
+            }
+            return $form;
+        }
+
+        return false;
+    }
+
     protected function _getSoapClient()
     {
         if (!is_null($this->soapClient))
@@ -1125,6 +1310,23 @@ class OcaEpak extends CarrierModule
         return $this->soapClient;
     }
 
+    protected function _getCostCenter($operativeReference)
+    {
+        try {
+            $response = $this->_getSoapClient()->GetCentroCostoPorOperativa(array(
+                'Cuit' => Configuration::get(self::CONFIG_PREFIX.'_CUIT'),
+                'Operativa' => $operativeReference
+            ));
+            $xml = new SimpleXMLElement($response->DataSet);
+            if (!$xml->count())
+                throw new Exception('No results from OCA webservice');
+            $data = $xml->NewDataSet->Table;
+        } catch (Exception $e) {
+            //Logger::AddLog('Ocaepak: '.$this->l('error getting online price for cart')." {$cart->id}");
+            //return (float)$this->convertCurrencyFromArs(Configuration::get(self::CONFIG_PREFIX.'_FAILCOST'), $cart->id_currency);
+        }
+    }
+
     protected function _makeErrorFriendly($error)
     {
         $replacements = array(
@@ -1133,6 +1335,52 @@ class OcaEpak extends CarrierModule
         );
 
         return str_replace(array_keys($replacements), array_values($replacements), $error);
+    }
+
+    protected function _cleanOcaAttribute($text, $maxLength, $fromEnd = false)
+    {
+        $clean = trim(htmlspecialchars(iconv('utf-8','ascii//TRANSLIT', $text)));
+        if (strpos($clean, '?') !== false) {
+            @setlocale(LC_TIME, 'es_ES');
+            $clean = trim(htmlspecialchars(iconv('utf-8','ascii//TRANSLIT', $text)));
+        }
+
+        if ($fromEnd)
+            return strlen($clean) > $maxLength ? substr($clean, -$maxLength) : $clean;
+        else
+            return strlen($clean) > $maxLength ? substr($clean, 0, $maxLength) : $clean;
+    }
+
+    /**
+     * @param $address Address
+     */
+    protected function _parseOcaAddress($address)
+    {
+        $other = strlen($address->other) ? '('.$address->other.')' : '';
+        $fullAddress =  trim(str_replace(array("\n", "\r"), ' ', ($address->address1.' '.$address->address2.' '.$other)), "\t\n\r");
+        $matches = array();
+        if (preg_match('/^(\d*\D+)$/x', $fullAddress, $matches)) {      //if no numbers after street
+            $ocaAddress = array(
+                'street' => $this->_cleanOcaAttribute($matches[1], self::OCA_STREET_LENGTH),
+                'number' => 0,
+                'observations' => $this->_cleanOcaAttribute($fullAddress, self::OCA_OBSERVATIONS_LENGTH, true)
+            );
+        } elseif (preg_match('/^(\d+)[-\/]*(\d+)$/', $fullAddress, $matches)) {      //if 2 numbers
+            $ocaAddress = array(
+                'street' => $this->_cleanOcaAttribute($matches[1], self::OCA_STREET_LENGTH),
+                'number' => $this->_cleanOcaAttribute($matches[2], self::OCA_STREET_LENGTH),
+                'observations' => $this->_cleanOcaAttribute($fullAddress, self::OCA_OBSERVATIONS_LENGTH, true)
+            );
+        } elseif (preg_match('/^(\d*[^0-9]+)(\d+)(\D+)/', $fullAddress, $matches)) {
+            $ocaAddress = array(
+                'street' => $this->_cleanOcaAttribute($matches[1], self::OCA_STREET_LENGTH),
+                'number' => $this->_cleanOcaAttribute($matches[2], self::OCA_STREET_LENGTH),
+                'observations' => $this->_cleanOcaAttribute($fullAddress, self::OCA_OBSERVATIONS_LENGTH, true)
+            );
+        } else
+            throw new Exception('Unable to parse address');
+
+        return $ocaAddress;
     }
 
 }
