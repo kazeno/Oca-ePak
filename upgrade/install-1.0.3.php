@@ -27,7 +27,7 @@ function upgrade_module_1_0_3($module) {
                     `tracking` VARCHAR(24) NOT NULL,
                     PRIMARY KEY (`'.OcaEpak::ORDERS_ID.'`)
                 )'
-        ) AND
+        )/* AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_ACCOUNT', '') AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_STREET', '') AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_NUMBER', '') AND
@@ -38,7 +38,7 @@ function upgrade_module_1_0_3($module) {
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_CONTACT', '') AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_REQUESTOR', '') AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_OBSERVATIONS', '')
-    );
+    */);
 }
 
 ?>
