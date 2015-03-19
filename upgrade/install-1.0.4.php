@@ -1,13 +1,29 @@
 <?php
-/*
- * File: /upgrade/Upgrade-1.0.3.php
- * @file-version 0.1
+/**
+ * Oca e-Pak Module for Prestashop
+ *
+ * @author    Rinku Kazeno <development@kazeno.co>
+ *
+ * @copyright Copyright (c) 2012-2015, Rinku Kazeno
+ * @license   This module is licensed to the user, upon purchase
+ *  from either Prestashop Addons or directly from the author,
+ *  for use on a single commercial Prestashop install, plus an
+ *  optional separate non-commercial install (for development/testing
+ *  purposes only). This license is non-assignable and non-transferable.
+ *  To use in additional Prestashop installations an additional
+ *  license of the module must be purchased for each one.
+ *
+ *  The user may modify the source of this module to suit their
+ *  own business needs, as long as no distribution of either the
+ *  original module or the user-modified version is made.
+ *
+ * @file-version 0.2
  */
 
 if (!defined('_PS_VERSION_'))
     exit;
 
-function upgrade_module_1_0_3($module) {
+function upgrade_module_1_0_4() {
     // Process Module upgrade for generate OCA order functionality
     return (
         Db::getInstance()->execute(
@@ -27,7 +43,15 @@ function upgrade_module_1_0_3($module) {
                     `tracking` VARCHAR(24) NOT NULL,
                     PRIMARY KEY (`'.OcaEpak::ORDERS_ID.'`)
                 )'
-        )/* AND
+        ) AND
+        Db::getInstance()->Execute(
+            'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . OcaEpak::RELAYS_TABLE . '` (
+                    `'.OcaEpak::RELAYS_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                    `id_cart` INT UNSIGNED NOT NULL,
+                    `distribution_center_id` INT UNSIGNED NOT NULL,
+                    PRIMARY KEY (`'.OcaEpak::RELAYS_ID.'`)
+                )'
+        ) /* AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_ACCOUNT', '') AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_STREET', '') AND
         Configuration::updateValue(OcaEpak::CONFIG_PREFIX.'_NUMBER', '') AND

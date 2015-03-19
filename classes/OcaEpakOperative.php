@@ -2,8 +2,22 @@
 /**
  * Oca e-Pak Module for Prestashop
  *
- *  @author Rinku Kazeno <development@kazeno.co>
- *  @file-version 1.0
+ * @author    Rinku Kazeno <development@kazeno.co>
+ *
+ * @copyright Copyright (c) 2012-2015, Rinku Kazeno
+ * @license   This module is licensed to the user, upon purchase
+ *  from either Prestashop Addons or directly from the author,
+ *  for use on a single commercial Prestashop install, plus an
+ *  optional separate non-commercial install (for development/testing
+ *  purposes only). This license is non-assignable and non-transferable.
+ *  To use in additional Prestashop installations an additional
+ *  license of the module must be purchased for each one.
+ *
+ *  The user may modify the source of this module to suit their
+ *  own business needs, as long as no distribution of either the
+ *  original module or the user-modified version is made.
+ *
+ *  @file-version 1.1
  */
 
 class OcaEpakOperative extends ObjectModel
@@ -92,8 +106,22 @@ class OcaEpakOperative extends ObjectModel
             ($this->id_carrier = $rangePrice->id_carrier = $rangeWeight->id_carrier = (int)$carrier->id) AND
             $rangePrice->add() AND
             $rangeWeight->add() AND
-            copy(_PS_MODULE_DIR_.OcaEpak::MODULE_NAME.'/img/logo.jpg', _PS_SHIP_IMG_DIR_.'/'.(int)$carrier->id.'.jpg') AND
+            copy(_PS_MODULE_DIR_.OcaEpak::MODULE_NAME.'/views/img/logo.jpg', _PS_SHIP_IMG_DIR_.'/'.(int)$carrier->id.'.jpg') AND
             parent::add($autodate, $null_values)
+        );
+    }
+
+    public function update($null_values = false)
+    {
+        $carrier = new Carrier($this->id_carrier);
+        $languages = Language::getLanguages(true);
+        foreach ($languages as $language)
+        {
+            $carrier->delay[(int)$language['id_lang']] = $this->description;
+        }
+        return (
+            $carrier->update() AND
+            parent::update($null_values)
         );
     }
 
@@ -121,7 +149,7 @@ class OcaEpakOperative extends ObjectModel
         return $id ? new OcaEpakOperative($id) : false;
     }
 
-    public static function getOperativeIds($filter_column=NULL, $filter_value=NULL)
+    public static function getOperativeIds($returnObjects=false, $filter_column=NULL, $filter_value=NULL)
     {
         if (!is_null($filter_column) && !in_array($filter_column, array(OcaEpak::OPERATIVES_ID, 'id_carrier', 'reference', 'description', 'addfee', 'id_shop', 'type')))
             return false;
@@ -136,10 +164,29 @@ class OcaEpakOperative extends ObjectModel
         $res = Db::getInstance()->executeS($query);
         $ops = array();
         foreach ($res as $re) {
-            $ops[$re[OcaEpak::OPERATIVES_ID]] = new OcaEpakOperative($re[OcaEpak::OPERATIVES_ID]);
+            $ops[$re[OcaEpak::OPERATIVES_ID]] = $returnObjects ? (new OcaEpakOperative($re[OcaEpak::OPERATIVES_ID])) : $re[OcaEpak::OPERATIVES_ID];
         }
-        return count($ops) ? $ops : false;
+        return $ops;
     }
+
+    public static function getRelayedCarrierIds($returnObjects=false)
+    {
+        ob_start(); ?>
+            SELECT `id_carrier`
+            FROM `<?php echo _DB_PREFIX_;?>carrier`
+            LEFT JOIN `<?php echo _DB_PREFIX_.OcaEpak::OPERATIVES_TABLE;?>` AS o
+            USING (`id_carrier`)
+            WHERE o.`type` IN ('PaS', 'SaS')
+        <?php $query = ob_get_clean();
+        $res = Db::getInstance()->executeS($query);
+        $crs = array();
+        foreach ($res as $re) {
+            $crs[] = $returnObjects ? (new Carrier($re['id_carrier'])) : $re['id_carrier'];
+        }
+        return $crs;
+    }
+
+
 
     public static function purgeCarriers()
     {
