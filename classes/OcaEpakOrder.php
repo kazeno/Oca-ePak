@@ -2,7 +2,21 @@
 /**
  * Oca e-Pak Module for Prestashop
  *
- *  @author Rinku Kazeno <development@kazeno.co>
+ * @author    Rinku Kazeno <development@kazeno.co>
+ *
+ * @copyright Copyright (c) 2012-2015, Rinku Kazeno
+ * @license   This module is licensed to the user, upon purchase
+ *  from either Prestashop Addons or directly from the author,
+ *  for use on a single commercial Prestashop install, plus an
+ *  optional separate non-commercial install (for development/testing
+ *  purposes only). This license is non-assignable and non-transferable.
+ *  To use in additional Prestashop installations an additional
+ *  license of the module must be purchased for each one.
+ *
+ *  The user may modify the source of this module to suit their
+ *  own business needs, as long as no distribution of either the
+ *  original module or the user-modified version is made.
+ *
  *  @file-version 1.1
  */
 
@@ -75,15 +89,16 @@ class OcaEpakOrder extends ObjectModel
         foreach (array(
             'account', 'street', 'number', 'floor', 'apartment', 'postcode', 'locality', 'province', 'contact', 'email', 'requestor', 'observations'
         ) as $conf) {
-            $config[$conf] = self::cleanOcaAttribute(Configuration::get(OcaEpak::CONFIG_PREFIX.'_'.strtoupper($conf)), constant('self::OCA_'.strtoupper($conf).'_LENGTH'));
+            $config[$conf] = self::cleanOcaAttribute(Configuration::get(OcaEpak::CONFIG_PREFIX.'_'.Tools::strtoupper($conf)), constant('self::OCA_'.Tools::strtoupper($conf).'_LENGTH'));
         }
         $address = self::parseOcaAddress($data['address']);
+        $costCenter = isset($data['cost_center_id']) ? (string)$data['cost_center_id'] : '0';
 
         ob_start();
         ?>
         <ROWS>
             <cabecera ver="1.0" nrocuenta="<?php  echo $config['account'];  ?>" />
-            <retiro calle="<?php  echo $config['street'];  ?>" nro="<?php  echo $config['number'];  ?>" piso="<?php  echo $config['floor'];  ?>" depto="<?php  echo $config['apartment'];  ?>" cp="<?php  echo $config['postcode'];  ?>" localidad="<?php  echo $config['locality'];  ?>" provincia="<?php  echo $config['province'];  ?>" contacto="<?php  echo $config['contact'];  ?>" email="<?php  echo $config['email'];  ?>" solicitante="<?php  echo $config['requestor'];  ?>" observaciones="<?php  echo $config['observations'];  ?>" centrocosto="0" />
+            <retiro calle="<?php  echo $config['street'];  ?>" nro="<?php  echo $config['number'];  ?>" piso="<?php  echo $config['floor'];  ?>" depto="<?php  echo $config['apartment'];  ?>" cp="<?php  echo $config['postcode'];  ?>" localidad="<?php  echo $config['locality'];  ?>" provincia="<?php  echo $config['province'];  ?>" contacto="<?php  echo $config['contact'];  ?>" email="<?php  echo $config['email'];  ?>" solicitante="<?php  echo $config['requestor'];  ?>" observaciones="<?php  echo $config['observations'];  ?>" centrocosto="<?php  echo $costCenter;  ?>" />
             <envios>
                 <envio idoperativa="<?php  echo self::cleanOcaAttribute($data['operative']->reference, self::OCA_OPERATIVE_LENGTH);  ?>" nroremito="<?php  echo self::cleanOcaAttribute($data['order']->id, self::OCA_REMIT_LENGTH);  ?>">
                     <destinatario apellido="<?php  echo $address['lastname'];  ?>" nombre="<?php  echo $address['firstname'];  ?>" calle="<?php  echo $address['street'];  ?>" nro="<?php  echo $address['number'];  ?>" piso="-" depto="-" cp="<?php  echo $address['postcode'];  ?>" localidad="<?php  echo $address['city'];  ?>" provincia="<?php  echo $address['state'];  ?>" telefono="<?php  echo $address['phone'];  ?>" email="<?php  echo self::cleanOcaAttribute($data['customer']->email, self::OCA_EMAIL_LENGTH);  ?>" idci="0" celular="<?php  echo $address['mobile'];  ?>" observaciones="<?php  echo $address['observations'];  ?>" />
@@ -109,9 +124,9 @@ class OcaEpakOrder extends ObjectModel
         }
 
         if ($fromEnd)
-            return strlen($clean) > $maxLength ? substr($clean, -$maxLength) : $clean;
+            return Tools::strlen($clean) > $maxLength ? Tools::substr($clean, -$maxLength) : $clean;
         else
-            return strlen($clean) > $maxLength ? substr($clean, 0, $maxLength) : $clean;
+            return Tools::strlen($clean) > $maxLength ? Tools::substr($clean, 0, $maxLength) : $clean;
     }
 
     /**
@@ -121,7 +136,7 @@ class OcaEpakOrder extends ObjectModel
      */
     public static  function parseOcaAddress($address)
     {
-        $other = strlen($address->other) ? '('.$address->other.')' : '';
+        $other = Tools::strlen($address->other) ? '('.$address->other.')' : '';
         $fullAddress =  trim(str_replace(array("\n", "\r"), ' ', ($address->address1.' '.$address->address2.' '.$other)), "\t\n\r");
         $matches = array();
         if (preg_match('/^(\d*\D+)$/x', $fullAddress, $matches)) {      //if no numbers after street
