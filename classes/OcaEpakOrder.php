@@ -93,6 +93,7 @@ class OcaEpakOrder extends ObjectModel
         }
         $address = self::parseOcaAddress($data['address']);
         $costCenter = isset($data['cost_center_id']) ? (string)$data['cost_center_id'] : '0';
+        $idci = isset($data['imposition_center_id']) ? (string)$data['imposition_center_id'] : '0';
 
         ob_start();
         ?>
@@ -101,7 +102,7 @@ class OcaEpakOrder extends ObjectModel
             <retiro calle="<?php  echo $config['street'];  ?>" nro="<?php  echo $config['number'];  ?>" piso="<?php  echo $config['floor'];  ?>" depto="<?php  echo $config['apartment'];  ?>" cp="<?php  echo $config['postcode'];  ?>" localidad="<?php  echo $config['locality'];  ?>" provincia="<?php  echo $config['province'];  ?>" contacto="<?php  echo $config['contact'];  ?>" email="<?php  echo $config['email'];  ?>" solicitante="<?php  echo $config['requestor'];  ?>" observaciones="<?php  echo $config['observations'];  ?>" centrocosto="<?php  echo $costCenter;  ?>" />
             <envios>
                 <envio idoperativa="<?php  echo self::cleanOcaAttribute($data['operative']->reference, self::OCA_OPERATIVE_LENGTH);  ?>" nroremito="<?php  echo self::cleanOcaAttribute($data['order']->id, self::OCA_REMIT_LENGTH);  ?>">
-                    <destinatario apellido="<?php  echo $address['lastname'];  ?>" nombre="<?php  echo $address['firstname'];  ?>" calle="<?php  echo $address['street'];  ?>" nro="<?php  echo $address['number'];  ?>" piso="-" depto="-" cp="<?php  echo $address['postcode'];  ?>" localidad="<?php  echo $address['city'];  ?>" provincia="<?php  echo $address['state'];  ?>" telefono="<?php  echo $address['phone'];  ?>" email="<?php  echo self::cleanOcaAttribute($data['customer']->email, self::OCA_EMAIL_LENGTH);  ?>" idci="0" celular="<?php  echo $address['mobile'];  ?>" observaciones="<?php  echo $address['observations'];  ?>" />
+                    <destinatario apellido="<?php  echo $address['lastname'];  ?>" nombre="<?php  echo $address['firstname'];  ?>" calle="<?php  echo $address['street'];  ?>" nro="<?php  echo $address['number'];  ?>" piso="-" depto="-" cp="<?php  echo $address['postcode'];  ?>" localidad="<?php  echo $address['city'];  ?>" provincia="<?php  echo $address['state'];  ?>" telefono="<?php  echo $address['phone'];  ?>" email="<?php  echo self::cleanOcaAttribute($data['customer']->email, self::OCA_EMAIL_LENGTH);  ?>" idci="<?php  echo $idci;  ?>" celular="<?php  echo $address['mobile'];  ?>" observaciones="<?php  echo $address['observations'];  ?>" />
                     <paquetes>
                         <?php  foreach ($data['boxes'] as $box) :  ?>
                             <paquete alto="<?php  echo self::cleanOcaAttribute($box['h'], self::OCA_ATTR_LENGTH);  ?>" ancho="<?php  echo self::cleanOcaAttribute($box['d'], self::OCA_ATTR_LENGTH);  ?>" largo="<?php  echo self::cleanOcaAttribute($box['l'], self::OCA_ATTR_LENGTH);  ?>" peso="<?php  echo self::cleanOcaAttribute($box['w'], self::OCA_ATTR_LENGTH);  ?>" valor="<?php  echo self::cleanOcaAttribute($box['v'], self::OCA_ATTR_LENGTH);  ?>" cant="<?php  echo self::cleanOcaAttribute($box['q'], self::OCA_ATTR_LENGTH);  ?>" />

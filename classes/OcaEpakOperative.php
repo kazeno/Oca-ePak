@@ -27,6 +27,7 @@ class OcaEpakOperative extends ObjectModel
     public $description;
     public $addfee;
     public $type;
+    public $old_carriers;
     public $insured;
     public $id_shop;
 
@@ -43,6 +44,7 @@ class OcaEpakOperative extends ObjectModel
             'description' => array('type' => self::TYPE_STRING, 'validate' => 'isGenericName', 'required' => TRUE),
             'addfee' => array('type' => self::TYPE_STRING, 'validate' => 'isString', 'required' => FALSE),
             'type' => array('type' => self::TYPE_STRING, 'validate' => 'isString', 'required' => true),
+            'old_carriers' => array('type' => self::TYPE_STRING, 'validate' => 'isString', 'required' => false),
             'insured' => array('type' => self::TYPE_STRING, 'validate' => 'isBool', 'required' => true),
             'id_shop' => array('type' => self::TYPE_INT, 'validate' => 'isunsignedInt', 'required' => true),
         )
@@ -135,6 +137,18 @@ class OcaEpakOperative extends ObjectModel
         );
     }
 
+    public function updateCarrier($newCarrierId)
+    {
+        $oldCarriers = Tools::strlen($this->old_carriers) ? explode(',', $this->old_carriers) : array();
+        if ((Tools::strlen($this->old_carriers)+Tools::strlen((string)$newCarrierId)+1) > 250)  //prevent table column overflow
+            array_shift($oldCarriers);
+        $this->old_carriers = implode(',', array_merge($oldCarriers, (int)$newCarrierId));
+        $this->id_carrier = (int)$newCarrierId;
+        return $this->save();
+    }
+
+
+
     public static function getByFieldId($field, $id_field)
     {
         if (!in_array($field, array('id_carrier', 'reference', 'description', /*'addfee', 'id_shop'*/)))
@@ -142,11 +156,28 @@ class OcaEpakOperative extends ObjectModel
         ob_start(); ?>
             SELECT `<?php echo OcaEpak::OPERATIVES_ID; ?>`
             FROM `<?php echo _DB_PREFIX_.OcaEpak::OPERATIVES_TABLE;?>`
-            WHERE `<?php echo $field; ?>` = '<?php echo (int)$id_field; ?>'
-            ORDER BY `<?php echo $field; ?>` DESC
+            WHERE `<?php echo pSQL($field); ?>` = '<?php echo (int)$id_field; ?>'
+            ORDER BY `<?php echo pSQL($field); ?>` DESC
         <?php $query = ob_get_clean();
         $id = Db::getInstance()->getValue($query);
         return $id ? new OcaEpakOperative($id) : false;
+    }
+
+    public static function getByCarrierId($id_carrier)
+    {
+        if ($op = OcaEpakOperative::getByFieldId('id_carrier', $id_carrier))
+            return $op;
+        ob_start(); ?>
+            SELECT `<?php echo OcaEpak::OPERATIVES_ID; ?>`, `old_carriers`
+            FROM `<?php echo _DB_PREFIX_.OcaEpak::OPERATIVES_TABLE;?>`
+            WHERE `old_carriers` LIKE '%<?php echo (int)$id_carrier; ?>%'
+        <?php $query = ob_get_clean();
+        $res = Db::getInstance()->executeS($query);
+        foreach ($res as $re) {
+            if (in_array($id_carrier, explode(',', $re['old_carriers'])))
+                return new OcaEpakOperative($re[OcaEpak::OPERATIVES_ID]);
+        }
+        return false;
     }
 
     public static function getOperativeIds($returnObjects=false, $filter_column=NULL, $filter_value=NULL)
@@ -197,6 +228,7 @@ class OcaEpakOperative extends ObjectModel
         <?php $query = ob_get_clean();
         return Db::getInstance()->execute($query);
     }
+
 
     /**
      * Shim for old PS 1.5 versions without Carrier::setGroups()

@@ -29,6 +29,7 @@ function upgrade_module_1_0_4() {
         Db::getInstance()->execute(
             'ALTER TABLE `' . _DB_PREFIX_ . OcaEpak::OPERATIVES_TABLE . '`
             ADD COLUMN `type` CHAR(3) NOT NULL,
+            ADD COLUMN `old_carriers` VARCHAR(250) NULL,
             ADD COLUMN `insured` INT UNSIGNED NULL'
         ) AND
         Db::getInstance()->execute(
