@@ -17,7 +17,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 0.1
+ *  @file-version 0.3
  */
 
 class OcaepakRelayModuleFrontController extends ModuleFrontController
@@ -31,7 +31,7 @@ class OcaepakRelayModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
 
-        $OcaEpak = new OcaEpak();
+        //$OcaEpak = new OcaEpak();
         $id_cart = $this->context->cookie->id_cart;
         $relay = OcaEpakRelay::getByCartId($id_cart);
         if (!$relay) {
@@ -41,7 +41,7 @@ class OcaepakRelayModuleFrontController extends ModuleFrontController
         $relay->distribution_center_id = (int)Tools::getValue('distribution_center_id');
         $relay->save();
 
-        echo json_encode(array('status' => 'Success'));
+        echo Tools::jsonEncode(array('status' => 'Success'));
         exit;
     }
 }

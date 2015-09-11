@@ -2,7 +2,7 @@
 /**
  * Oca e-Pak Module for Prestashop
  *
- * Tested in Prestashop v1.5.0.17, 1.5.6.2, 1.6.0.5, 1.6.0.6, 1.6.0.14
+ * Tested in Prestashop v1.5.0.17, 1.5.6.2, 1.6.0.5, 1.6.0.6, 1.6.0.14, 1.6.1.0
  *
  * @author    Rinku Kazeno <development@kazeno.co>
  *
@@ -19,7 +19,7 @@
  *   own business needs, as long as no distribution of either the
  *   original module or the user-modified version is made.
  *
- *  @version 1.1.0 Pre
+ *  @version 1.2
  */
 
 if (!defined( '_PS_VERSION_'))
@@ -34,34 +34,33 @@ class OcaEpak extends CarrierModule
     const OPERATIVES_TABLE = 'ocae_operatives';     //DB table for Operatives
     const OPERATIVES_ID = 'id_ocae_operatives';     //DB table id for Operatives
     const QUOTES_TABLE = 'ocae_quotes';             //DB table for quotes
-    const QUOTES_ID = 'id_ocae_quotes';             //DB table id for quotes
-    const ORDERS_TABLE = 'ocae_orders';             //DB table for orders
-    const ORDERS_ID = 'id_ocae_orders';             //DB table id for orders
-    const RELAYS_TABLE = 'ocae_relays';             //DB table for orders
-    const RELAYS_ID = 'id_ocae_relays';             //DB table id for orders
+    const RELAYS_TABLE = 'ocae_relays';             //DB table for relays
+    const RELAYS_ID = 'id_ocae_relays';              //DB table id for quotes
+    const GEOCODES_TABLE = 'ocae_geocodes';             //DB table for relays
+    const GEOCODES_ID = 'id_ocae_geocodes';             //DB table id for relays
     const TRACKING_URL = 'https://www1.oca.com.ar/OEPTrackingWeb/trackingenvio.asp?numero1=@';
-    const OCA_URL = 'http://webservice.oca.com.ar/oep_tracking/Oep_Track.asmx?WSDL';
+    const OCA_URL = 'http://webservice.oca.com.ar/epak_tracking/Oep_TrackEPak.asmx?wsdl';
 
     const PADDING = 1;          //space to add around each product for volume calculations, in cm
 
     public $id_carrier;
     private $soapClient = NULL;
     protected  $guiHeader = '';
-    private $boxes = array();
 
     public function __construct()
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '1.0.5.2';
+        $this->version = '1.2.0';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
         $this->module_key = '8ba7bceea44707dc9d6043606694cea5';
         $this->bootstrap = true;
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOperative.php";
-        include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOrder.php";
+        include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakQuote.php";
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakRelay.php";
+        include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakGeocoding.php";
 
         parent::__construct();
         $this->displayName = 'OCA e-Pak';
@@ -83,8 +82,8 @@ class OcaEpak extends CarrierModule
         $db = Db::getInstance();
         return (
             $db->Execute(
-                'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::OPERATIVES_TABLE . '` (
-                    `'.self::OPERATIVES_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                /*'CREATE TABLE IF NOT EXISTS `' . pSQL(_DB_PREFIX_ . self::OPERATIVES_TABLE) . '` (
+                    `'.pSQL(self::OPERATIVES_ID).'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
                     `id_carrier` INT UNSIGNED NULL,
                     `reference` INT UNSIGNED NOT NULL,
                     `description` text NULL,
@@ -93,43 +92,62 @@ class OcaEpak extends CarrierModule
                     `type` CHAR(3) NOT NULL,
                     `old_carriers` VARCHAR(250) NULL,
                     `insured` INT UNSIGNED NULL,
-                    PRIMARY KEY (`'.self::OPERATIVES_ID.'`)
-                )'
+                    PRIMARY KEY (`'.pSQL(self::OPERATIVES_ID).'`)
+                )'*/
+                $this->interpolateSqlFile('create-operatives-table', array(
+                    '{$DB_PREFIX}' => _DB_PREFIX_,
+                    '{$TABLE_NAME}' => self::OPERATIVES_TABLE,
+                    '{$TABLE_ID}' => self::OPERATIVES_ID
+                ))
             ) AND
             $db->Execute(
-                'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::QUOTES_TABLE . '` (
-                    `'.self::QUOTES_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                /*'CREATE TABLE IF NOT EXISTS `' . pSQL(_DB_PREFIX_ . self::QUOTES_TABLE) . '` (
                     `reference` INT UNSIGNED NOT NULL,
-                    `postcode` INT UNSIGNED NULL,
-                    `origin` INT UNSIGNED NULL,
-                    `volume` INT UNSIGNED NOT NULL,
-                    `weight` INT UNSIGNED NOT NULL,
-                    `price` FLOAT NOT NULL,
-                    PRIMARY KEY (`'.self::QUOTES_ID.'`)
-                )'
+                    `postcode` INT UNSIGNED NOT NULL,
+                    `origin` INT UNSIGNED NOT NULL,
+                    `volume` float unsigned NOT NULL,
+                    `weight` float unsigned NOT NULL,
+                    `value` float unsigned NOT NULL,
+                    `price` float NOT NULL,
+                    `date` datetime NOT NULL,
+                    PRIMARY KEY (`reference`,`postcode`,`origin`,`volume`,`weight`,`value`),
+                    UNIQUE KEY `quote` (`reference`,`postcode`,`origin`,`volume`,`weight`,`value`)
+                )'*/
+                $this->interpolateSqlFile('create-quotes-table', array(
+                    '{$DB_PREFIX}' => _DB_PREFIX_,
+                    '{$TABLE_NAME}' => self::QUOTES_TABLE,
+                ))
             ) AND
             $db->Execute(
-                'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::ORDERS_TABLE . '` (
-                    `'.self::ORDERS_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-                    `reference` INT UNSIGNED NOT NULL,
-                    `id_order` INT UNSIGNED NULL,
-                    `status` VARCHAR(120) NULL,
-                    `tracking` VARCHAR(24) NOT NULL,
-                    PRIMARY KEY (`'.self::ORDERS_ID.'`)
-                )'
-            ) AND
-            $db->Execute(
-                'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . self::RELAYS_TABLE . '` (
-                    `'.self::RELAYS_ID.'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                /*'CREATE TABLE IF NOT EXISTS `' . pSQL(_DB_PREFIX_ . self::RELAYS_TABLE) . '` (
+                    `'.pSQL(self::RELAYS_ID).'` INT UNSIGNED NOT NULL AUTO_INCREMENT,
                     `id_cart` INT UNSIGNED NOT NULL,
                     `distribution_center_id` INT UNSIGNED NOT NULL,
-                    PRIMARY KEY (`'.self::RELAYS_ID.'`)
-                )'
+                    PRIMARY KEY (`'.pSQL(self::RELAYS_ID).'`)
+                )'*/
+                $this->interpolateSqlFile('create-relays-table', array(
+                    '{$DB_PREFIX}' => _DB_PREFIX_,
+                    '{$TABLE_NAME}' => self::RELAYS_TABLE,
+                    '{$TABLE_ID}' => self::RELAYS_ID
+                ))
+            ) AND
+            $db->Execute(
+                $this->interpolateSqlFile('create-geocodes-table', array(
+                    '{$DB_PREFIX}' => _DB_PREFIX_,
+                    '{$TABLE_NAME}' => self::GEOCODES_TABLE,
+                    '{$TABLE_ID}' => self::GEOCODES_ID
+                ))
+            ) AND
+            $db->Execute(
+                $this->interpolateSqlFile('populate-geocodes-table', array(
+                    '{$DB_PREFIX}' => _DB_PREFIX_,
+                    '{$TABLE_NAME}' => self::GEOCODES_TABLE,
+                    '{$TABLE_ID}' => self::GEOCODES_ID
+                ))
             ) AND
             parent::install() AND
             $this->registerHook(_PS_VERSION_ < '1.5' ? 'extraCarrier' : 'displayCarrierList') AND
             $this->registerHook('displayAdminOrder') AND
-            $this->registerHook('actionCartSave') AND
             $this->registerHook('updateCarrier') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_ACCOUNT', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_EMAIL', '') AND
@@ -138,38 +156,27 @@ class OcaEpak extends CarrierModule
             Configuration::updateValue(self::CONFIG_PREFIX.'_DEFWEIGHT', '0.25') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_DEFVOLUME', '0.125') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'_FAILCOST', '63.37') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_POSTCODE', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_ENABLE_PICKUP_ORDERS', 0) AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_STREET', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_NUMBER', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_FLOOR', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_APARTMENT', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_LOCALITY', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_PROVINCE', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_CONTACT', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_REQUESTOR', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_OBSERVATIONS', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_BOXES', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_TIMESLOT', '') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'_AUTO_ORDER', false)
+            Configuration::updateValue(self::CONFIG_PREFIX.'_POSTCODE', '')
         );
     }
 
     public function uninstall()
     {
-        //**/return parent::uninstall();
         $db = Db::getInstance();
         OcaEpakOperative::purgeCarriers();
         return (
             parent::uninstall() AND
             $db->Execute(
-                'DROP TABLE IF EXISTS '._DB_PREFIX_.self::OPERATIVES_TABLE
+                'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::OPERATIVES_TABLE)
             ) AND
             $db->Execute(
-                'DROP TABLE IF EXISTS '._DB_PREFIX_.self::QUOTES_TABLE
+                'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::QUOTES_TABLE)
             ) AND
             $db->Execute(
-                'DROP TABLE IF EXISTS '._DB_PREFIX_.self::RELAYS_TABLE
+                'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::RELAYS_TABLE)
+            ) AND
+            $db->Execute(
+                'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::GEOCODES_TABLE)
             ) AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_ACCOUNT') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_EMAIL') AND
@@ -178,19 +185,7 @@ class OcaEpak extends CarrierModule
             Configuration::deleteByName(self::CONFIG_PREFIX.'_DEFWEIGHT') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_DEFVOLUME') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'_FAILCOST') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_POSTCODE') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_ENABLE_PICKUP_ORDERS') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_STREET') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_NUMBER') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_FLOOR') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_APARTMENT') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_LOCALITY') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_PROVINCE') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_CONTACT') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_REQUESTOR') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_OBSERVATIONS') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_BOXES') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'_AUTO_ORDER')
+            Configuration::deleteByName(self::CONFIG_PREFIX.'_POSTCODE')
         );
     }
 
@@ -216,7 +211,6 @@ class OcaEpak extends CarrierModule
                 $op = new OcaEpakOperative();
                 $confirm = $this->l('New OCA Operative and its carrier have been successfully created');
             }
-            //**/Tools::dieObject($op);
             $op->reference = Tools::getValue('reference');
             $op->id_shop = $this->context->shop->id;
             $op->description = Tools::getValue('description');
@@ -236,7 +230,8 @@ class OcaEpak extends CarrierModule
                 try {
                     $response = $this->_getSoapClient()->Tarifar_Envio_Corporativo(array(
                         'PesoTotal' => '1',
-                        'VolumenTotal' => '50',
+                        'VolumenTotal' => '0.05',
+                        'ValorDeclarado' => '100',
                         'CodigoPostalOrigen' => Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'),
                         'CodigoPostalDestino' => Configuration::get(self::CONFIG_PREFIX.'_POSTCODE') == 9120 ? 1924 : 9120,
                         'CantidadPaquetes' => 1,
@@ -293,7 +288,7 @@ class OcaEpak extends CarrierModule
               <?php else : ?>
                 var $form1 = $('#form1');
                 var $form2 = $('#form2');
-                var $table = $('form[id$="ocae_operatives"');
+                var $table = $('form[id$="ocae_operatives"]');
               <?php endif; ?>
                 function syncInputs(event) {
                     event.data.target.find("[name='"+$(this).attr("name")+"']").val($(this).val());
@@ -311,128 +306,6 @@ class OcaEpak extends CarrierModule
             });
         </script>
         <?php $this->_addToHeader(ob_get_clean());
-        ob_start();  ?>
-            <div class="panel" id="oca-box-1">
-                <div class="panel-heading">
-                    <?php echo $this->l('Box'); ?> <span class="num">1</span>
-                    <span class="panel-heading-action">
-                        <a class="list-toolbar-btn box-delete">
-					        <span title="<?php  echo $this->l('Delete');  ?>">
-						        <i class="process-icon-delete"></i>
-					        </span>
-                        </a>
-                    </span>
-                </div>
-                <div class="form-group">
-                    <label for="boxes-box" class="control-label col-lg-3 ">
-                        <?php echo $this->l('Dimensions'); ?>
-                    </label>
-                    <div class="col-lg-9">
-                        <input type="text" name="oca-box-l-1" id="oca-box-l-1" value="" class="fixed-width-sm" style="display: inline-block;" size="8"> cm ×
-                        <input type="text" name="oca-box-d-1" id="oca-box-d-1" value="" class="fixed-width-sm" style="display: inline-block;" size="8"> cm ×
-                        <input type="text" name="oca-box-h-1" id="oca-box-h-1" value="" class="fixed-width-sm" style="display: inline-block;" size="8"> cm
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="boxes-box" class="control-label col-lg-3 ">
-                        <?php echo $this->l('Box contents maximum weight'); ?>
-                    </label>
-                    <div class="col-lg-9">
-                        <input type="text" name="oca-box-xw-1" id="oca-box-xw-1" value="" class="fixed-width-sm" style="display: inline-block;" size="8"> kg
-                    </div>
-                </div>
-            </div>
-            <div class="row-margin-bottom row-margin-top order_action margin-form">
-                <button id="add_oca_box" class="btn btn-default" type="button">
-                    <i class="icon-plus"></i>
-                    <?php echo $this->l('Add a new box'); ?>
-                </button>
-            </div>
-            <script>
-                (function() {
-                    var $box = $('#oca-box-1');
-                    var boxnum = 1;
-                    var boxesJson = [];
-                    var container = $box.prop('outerHTML');
-                    $('input[name=enable_pickup_orders]').change(togglePickup);
-                    togglePickup();
-                    $('#add_oca_box').click(function() {
-                        boxnum += 1;
-                        var $newbox = $('#oca-box-1').clone().attr('id', 'oca-box-'+boxnum);
-                        $newbox.find('input').each(function(){
-                            var split = $(this).attr('name').lastIndexOf('-')+1;
-                            $(this).attr('name', $(this).attr('name').substr(0,split)+boxnum);
-                            $(this).attr('id', $(this).attr('id').substr(0,split)+boxnum);
-                        });
-                        $newbox.find('.panel-heading>span.num').html(boxnum);
-                        $('#add_oca_box').parent().before($newbox);
-                        serializeBoxes();
-                    });
-                    $(document).on("change", '[id^="oca-box-"] input', function(event) {
-                        serializeBoxes();
-                    });
-                    $(document).on("click", '.box-delete', function(event) {
-                        var $div = $(this).closest('div[id^="oca-box-"]');
-                        var split = $div.attr('id').lastIndexOf('-')+1;
-                        var num = $div.attr('id').substr(split);
-                        boxesJson.splice(num-1, 1);
-                        $.grep(boxesJson,function(n){ return(n) });     //fix js null elements in array quirk
-                        $('input[name="boxes"]').val(JSON.stringify(boxesJson, null, 2));
-                        renderBoxes();
-                    });
-
-                    function togglePickup() {
-                        if ($('input[name=enable_pickup_orders]:checked').val() == 1) {
-                            $('.pickup_orders').prop('required', true).parents('.form-group').show();
-                            $('.pickup_orders_required').parents('.form-group').find('label').addClass('required');
-                        } else {
-                            $('.pickup_orders').prop('required', false).parents('.form-group').hide();
-                            $('.pickup_orders_required').parents('.form-group').find('label').removeClass('required');
-                        }
-                    }
-
-                    function serializeBoxes() {
-                        boxesJson = [];
-                        $('[id^="oca-box-"]').each(function () {
-                            var split = $(this).attr('id').lastIndexOf('-')+1;
-                            var num = $(this).attr('id').substr(split);
-                            var dimensions = [
-                                $('input[name="oca-box-l-'+num+'"]').val() || 0,
-                                $('input[name="oca-box-d-'+num+'"]').val() || 0,
-                                $('input[name="oca-box-h-'+num+'"]').val() || 0
-                            ];
-                            dimensions.sort(function(a, b){ return b-a; });
-                            boxesJson[num-1] = {
-                                l: dimensions.shift(),
-                                d: dimensions.shift(),
-                                h: dimensions.shift(),
-                                xw: $('input[name="oca-box-xw-'+num+'"]').val() || 0
-                            };
-                        });
-                        $('input[name="boxes"]').val(JSON.stringify(boxesJson, null, 2));
-                    }
-
-                    function renderBoxes() {
-                        $('[id^="oca-box-"]').remove();
-                        boxesJson = JSON.parse($('input[name="boxes"]').val());
-                        $.each(boxesJson, function (index, value) {
-                            var $newbox = $(container);
-                            $newbox.attr('id', 'oca-box-'+(1+index));
-                            $newbox.find('input[name="oca-box-l-1"]').attr('name', 'oca-box-l-'+(1+index)).val(value.l);
-                            $newbox.find('input[name="oca-box-d-1"]').attr('name', 'oca-box-d-'+(1+index)).val(value.d);
-                            $newbox.find('input[name="oca-box-h-1"]').attr('name', 'oca-box-h-'+(1+index)).val(value.h);
-                            $newbox.find('input[name="oca-box-xw-1"]').attr('name', 'oca-box-xw-'+(1+index)).val(value.xw);
-                            $newbox.find('.panel-heading>span.num').html(1+index);
-                            $('#add_oca_box').parent().before($newbox);
-                        });
-                        boxnum = boxesJson.length || 1;
-                        if (boxesJson.length == 0)
-                            $('#add_oca_box').parent().before($(container));
-                    }
-                    renderBoxes();
-                })();
-            </script>
-        <?php  $boxBox = ob_get_clean();
 
         $fields_form1 = array(
             'form' => array(
@@ -486,51 +359,7 @@ class OcaEpak extends CarrierModule
                         ),
                         array(
                             'type' => 'hidden',
-                            'name' => 'street',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'number',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'floor',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'apartment',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'locality',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'province',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'contact',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'requestor',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'observations',
-                        ),
-                        array(
-                            'type' => 'hidden',
                             'name' => 'failcost',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'timeslot',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'boxes',
                         ),
                     ),
                     'desc' =>  $this->l('To add your OCA operatives, click on the "add" button at the top of the following table'),
@@ -556,105 +385,6 @@ class OcaEpak extends CarrierModule
                             'required' => true
 
                         ),
-                        array(
-                            'type' => _PS_VERSION_ < 1.6 ? 'radio' : 'switch',
-                            'label' => $this->l('Enable Pickup Order Generator'),
-                            'name' => 'enable_pickup_orders',
-                            'hint' => $this->l('Experimental feature'),
-                            'class' => 't',
-                            'is_bool' => TRUE,
-                            'values' => array(
-                                array(
-                                    'id' => 'enable_pickup_orders_on',
-                                    'value' => '1',
-                                    'label' => 'on',
-                                ),
-                                array(
-                                    'id' => 'enable_pickup_orders_off',
-                                    'value' => '0',
-                                    'label' => 'off',
-                                ),
-                            ),
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 30,
-                            'label' => $this->l('Street'),
-                            'name' => 'street',
-                            'class' => 'fixed-width-lg pickup_orders pickup_orders_required',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 5,
-                            'label' => $this->l('Number'),
-                            'name' => 'number',
-                            'class' => 'fixed-width-lg pickup_orders pickup_orders_required',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 2,
-                            'label' => $this->l('Floor'),
-                            'name' => 'floor',
-                            'class' => 'fixed-width-lg pickup_orders',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 4,
-                            'label' => $this->l('Apartment'),
-                            'name' => 'apartment',
-                            'class' => 'fixed-width-lg pickup_orders',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 30,
-                            'label' => $this->l('Locality'),
-                            'name' => 'locality',
-                            'class' => 'fixed-width-lg pickup_orders pickup_orders_required',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 30,
-                            'label' => $this->l('Province'),
-                            'name' => 'province',
-                            'class' => 'fixed-width-lg pickup_orders',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 30,
-                            'label' => $this->l('Contact'),
-                            'name' => 'contact',
-                            'class' => 'fixed-width-lg pickup_orders',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 30,
-                            'label' => $this->l('Requestor'),
-                            'name' => 'requestor',
-                            'class' => 'fixed-width-lg pickup_orders',
-                        ),
-                        array(
-                            'type' => 'text',
-                            'maxlength' => 100,
-                            'label' => $this->l('Observations'),
-                            'name' => 'observations',
-                            'class' => 'fixed-width-xxxxl pickup_orders',
-                        ),
-                        array(
-                            'type' => 'select',
-                            'label' => $this->l('Time slot'),
-                            'name' => 'timeslot',
-                            'class' =>  'pickup_orders',
-                            'options' => array(
-                                'query' => array(
-                                    array('value' =>'1', 'text' =>'8-17'),
-                                    array('value' =>'2', 'text' =>'8-12'),
-                                    array('value' =>'3', 'text' =>'14-17'),
-                                ),
-                                'id' => 'value',
-                                'name' => 'text'
-                            ),
-                            'desc' => $this->l('OCA collections will be made during this time slot')
-                        ),
                     ),
                 )
             ),
@@ -664,45 +394,7 @@ class OcaEpak extends CarrierModule
                         'id_form' => 'form2',
                     ),
                     'legend' => array(
-                        'title' => '4. '.$this->l('Packaging')
-                    ),
-                    'description' => $this->l('These are the types of boxes you commonly use for shipping'),
-                    'input' => array(
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'boxes'
-                        ),
-                        array(
-                            'type' => 'free',
-                            'name' => 'boxes-box',
-                            //'label' => $this->l('Packaging'),
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'email',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'password',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'cuit',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'account',
-                        ),
-                    )
-                )
-            ),
-            array(
-                'form' => array(
-                    'form' => array(
-                        'id_form' => 'form2',
-                    ),
-                    'legend' => array(
-                        'title' => '5. '.$this->l('Failsafes')
+                        'title' => '4. '.$this->l('Failsafes')
                     ),
                     'description' => $this->l('These settings will be used in case of missing data in your products'),
                     'input' => array(
@@ -763,20 +455,7 @@ class OcaEpak extends CarrierModule
             'defweight' => Tools::getValue('defweight', Configuration::get(self::CONFIG_PREFIX.'_DEFWEIGHT')),
             'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'_DEFVOLUME')),
             'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')),
-            'street' => Tools::getValue('street', Configuration::get(self::CONFIG_PREFIX.'_STREET')),
-            'number' => Tools::getValue('number', Configuration::get(self::CONFIG_PREFIX.'_NUMBER')),
-            'floor' => Tools::getValue('floor', Configuration::get(self::CONFIG_PREFIX.'_FLOOR')),
-            'apartment' => Tools::getValue('apartment', Configuration::get(self::CONFIG_PREFIX.'_APARTMENT')),
-            'locality' => Tools::getValue('locality', Configuration::get(self::CONFIG_PREFIX.'_LOCALITY')),
-            'province' => Tools::getValue('province', Configuration::get(self::CONFIG_PREFIX.'_PROVINCE')),
-            'contact' => Tools::getValue('contact', Configuration::get(self::CONFIG_PREFIX.'_CONTACT')),
-            'requestor' => Tools::getValue('requestor', Configuration::get(self::CONFIG_PREFIX.'_REQUESTOR')),
-            'observations' => Tools::getValue('observations', Configuration::get(self::CONFIG_PREFIX.'_OBSERVATIONS')),
             'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'_FAILCOST')),
-            'timeslot' => Tools::getValue('timeslot', Configuration::get(self::CONFIG_PREFIX.'_TIMESLOT') ? Configuration::get(self::CONFIG_PREFIX.'_TIMESLOT') : 1),
-            'boxes' => Tools::getValue('boxes', Configuration::get(self::CONFIG_PREFIX.'_BOXES') ? Configuration::get(self::CONFIG_PREFIX.'_BOXES') : '[]'),
-            'boxes-box' => $boxBox,
-            'enable_pickup_orders' => Tools::getValue('enable_pickup_orders', Configuration::get(self::CONFIG_PREFIX.'_ENABLE_PICKUP_ORDERS'))
         );
 
         $helper = new HelperForm();
@@ -890,51 +569,7 @@ class OcaEpak extends CarrierModule
                         ),
                         array(
                             'type' => 'hidden',
-                            'name' => 'street',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'number',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'floor',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'apartment',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'locality',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'province',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'contact',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'requestor',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'observations',
-                        ),
-                        array(
-                            'type' => 'hidden',
                             'name' => 'failcost',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'timeslot',
-                        ),
-                        array(
-                            'type' => 'hidden',
-                            'name' => 'boxes',
                         ),
                     ),
                     'submit' => array(
@@ -980,18 +615,7 @@ class OcaEpak extends CarrierModule
                 'defweight' => Tools::getValue('defweight', Configuration::get(self::CONFIG_PREFIX.'_DEFWEIGHT')),
                 'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'_DEFVOLUME')),
                 'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'_POSTCODE')),
-                'street' => Tools::getValue('street', Configuration::get(self::CONFIG_PREFIX.'_STREET')),
-                'number' => Tools::getValue('number', Configuration::get(self::CONFIG_PREFIX.'_NUMBER')),
-                'floor' => Tools::getValue('floor', Configuration::get(self::CONFIG_PREFIX.'_FLOOR')),
-                'apartment' => Tools::getValue('apartment', Configuration::get(self::CONFIG_PREFIX.'_APARTMENT')),
-                'locality' => Tools::getValue('locality', Configuration::get(self::CONFIG_PREFIX.'_LOCALITY')),
-                'province' => Tools::getValue('province', Configuration::get(self::CONFIG_PREFIX.'_PROVINCE')),
-                'contact' => Tools::getValue('contact', Configuration::get(self::CONFIG_PREFIX.'_CONTACT')),
-                'requestor' => Tools::getValue('requestor', Configuration::get(self::CONFIG_PREFIX.'_REQUESTOR')),
-                'observations' => Tools::getValue('observations', Configuration::get(self::CONFIG_PREFIX.'_OBSERVATIONS')),
                 'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'_FAILCOST')),
-                'timeslot' => Tools::getValue('timeslot', Configuration::get(self::CONFIG_PREFIX.'_TIMESLOT') ? Configuration::get(self::CONFIG_PREFIX.'_TIMESLOT') : 1),
-                'boxes' => Tools::getValue('boxes', Configuration::get(self::CONFIG_PREFIX.'_BOXES') ? Configuration::get(self::CONFIG_PREFIX.'_BOXES') : '[]'),
             ), $fields
         );
 
@@ -1013,7 +637,7 @@ class OcaEpak extends CarrierModule
 
     public function renderOperativesList()
     {
-        $content = Db::getInstance()->executeS('SELECT * FROM `'._DB_PREFIX_.self::OPERATIVES_TABLE.'` WHERE 1 '.Shop::addSqlRestriction().' ORDER BY reference');
+        $content = Db::getInstance()->executeS('SELECT * FROM `'.pSQL(_DB_PREFIX_.self::OPERATIVES_TABLE).'` WHERE 1 '.Shop::addSqlRestriction().pSQL(' ORDER BY reference'));
         $fields_list = array(
             'reference' => array(
                 'title' => $this->l('Operative'),
@@ -1087,7 +711,6 @@ class OcaEpak extends CarrierModule
 
     protected function _getErrors()
     {
-        //**/Tools::dieObject($_POST);
         ## @todo: validate pickup address
         $error = '';
         if (!Tools::strlen(trim(Tools::getValue('account'))))
@@ -1108,17 +731,6 @@ class OcaEpak extends CarrierModule
             $error .= $this->displayError($this->l('Invalid postcode'));
         if (!OcaEpakOperative::isCurrentlyUsed(OcaEpak::OPERATIVES_TABLE))
             $error .= $this->displayError($this->l('You need to add at least one operative'));
-        $boxes = Tools::jsonDecode(Tools::getValue('boxes'), true);
-        foreach ($boxes as $box) {
-            if (($box['l']+$box['d']+$box['h']+$box['xw']) > 0) {
-                if (!is_numeric($box['l']) || !is_numeric($box['d']) || !is_numeric($box['h']) || !is_numeric($box['xw']))
-                    $error .= $this->displayError($this->l('Some of the boxes have a non-numeric dimension'));
-                elseif ($box['l'] == 0 || $box['d'] == 0 || $box['h'] == 0 || $box['xw'] == 0)
-                    $error .= $this->displayError($this->l('Some of the boxes have a dimension of 0'));
-                else
-                    $this->boxes[] = $box;
-            }
-        }
 
         return $error;
     }
@@ -1133,106 +745,8 @@ class OcaEpak extends CarrierModule
         Configuration::updateValue(self::CONFIG_PREFIX.'_DEFVOLUME', Tools::getValue('defvolume'));
         Configuration::updateValue(self::CONFIG_PREFIX.'_FAILCOST', Tools::getValue('failcost'));
         Configuration::updateValue(self::CONFIG_PREFIX.'_POSTCODE', Tools::getValue('postcode'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_ENABLE_PICKUP_ORDERS', Tools::getValue('enable_pickup_orders'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_STREET', Tools::getValue('street'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_NUMBER', Tools::getValue('number'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_FLOOR', Tools::getValue('floor'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_APARTMENT', Tools::getValue('apartment'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_LOCALITY', Tools::getValue('locality'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_PROVINCE', Tools::getValue('province'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_CONTACT', Tools::getValue('contact'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_REQUESTOR', Tools::getValue('requestor'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_OBSERVATIONS', Tools::getValue('observations'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_TIMESLOT', Tools::getValue('timeslot'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'_BOXES', Tools::jsonEncode($this->boxes));
 
         return $this->displayConfirmation($this->l('Configuration saved'));
-    }
-
-    public function renderOrderGeneratorForm($type)
-    {
-        $boxes = Tools::jsonDecode(Configuration::get(self::CONFIG_PREFIX.'_BOXES'), true);
-        ob_start();  ?>
-        <div class="panel">
-            <?php  foreach ($boxes as $ind => $box) :  ?>
-                <div class="form-group">
-                    <h4 style="display: inline-block; margin-right: 16px;"><?php echo $this->l('Box').": {$box['l']}cm×{$box['d']}cm×{$box['h']}cm"; ?></h4>
-                    <?php echo $this->l('Quantity'); ?>: <input type="text" name="oca-box-q-<?php echo $ind; ?>" id="oca-box-q-<?php echo $ind; ?>" value="0" class="fixed-width-sm" style="display: inline-block;  margin-right: 16px;">
-
-                    <!--<?php /**/echo $this->l('Weight'); ?>: <input type="text" name="oca-box-w-<?php echo $ind; ?>" id="oca-box-w-<?php echo $ind; ?>" value="0" class="fixed-width-sm" style="display: inline-block;  margin-right: 16px;">
-                    <?php echo $this->l('Declared value'); ?>: $<input type="text" name="oca-box-v-<?php echo $ind; ?>" id="oca-box-v-<?php echo $ind; ?>" value="0" class="fixed-width-sm" style="display: inline-block;">-->
-                </div>
-            <?php  endforeach;  ?>
-        </div>
-        <?php  $boxBox = ob_get_clean();
-        $fields_form = array(
-            'form' => array(
-                'form' => array(
-                    'id_form' => 'oca-form',
-                    'legend' => array(
-                        'title' => $this->l('OCA Pick-up Order Generator')
-                    ),
-                    'input' => array(
-                        /*array(
-                            'type' => 'select',
-                            'label' => $this->l('Time slot'),
-                            'name' => 'oca-time',
-                            'options' => array(
-                                'query' => array(
-                                    array('value' =>'1', 'text' =>'8-17'),
-                                    array('value' =>'2', 'text' =>'8-12'),
-                                    array('value' =>'3', 'text' =>'14-17'),
-                                ),
-                                'id' => 'value',
-                                'name' => 'text'
-                            ),
-                        ),*/
-                        /*array(
-                            'type' => 'textarea',
-                            'label' => $this->l('Observations'),
-                            'name' => 'oca-observations',
-                            'cols' => '50',
-                            'rows' => '2',
-                        ),*/
-                        array(
-                            'type' => 'text',
-                            'label' => $this->l('Days for pick-up'),
-                            'name' => 'oca-days',
-                            'class' => 'fixed-width-lg',
-                        ),
-                        array(
-                            'type' => 'free',
-                            'name' => 'boxes',
-                            'label' => $this->l('Packaging'),
-                            'desc' =>  $this->l('If all boxes remain with 0 quantity, a single package with the total volume and weight of the cart will be used instead')
-                        ),
-                    ),
-                    'submit' => array(
-                        'title' => $this->l('Generate OCA Pick-up Order'),
-                        'name' => 'oca-order-submit'
-                    ),
-                )
-            ),
-        );
-        $fields_value = array(
-            //'oca-observations' => Tools::getValue('oca-observations', ''),
-            'oca-days' => Tools::getValue('oca-days', 1),
-            'boxes' => $boxBox,
-        );
-        $helper = new HelperForm();
-        $helper->module = $this;
-        $helper->title = $this->displayName;
-        $helper->name_controller = $this->name;
-        $helper->identifier = $this->identifier;
-        $helper->token = Tools::getAdminTokenLite('AdminOrders');
-        $helper->currentIndex = 'index.php?controller=AdminOrders&id_order='.Tools::getValue('id_order').'&vieworder';
-        $lang = new Language((int)Configuration::get('PS_LANG_DEFAULT'));
-        $helper->default_form_language = $lang->id;
-        $helper->show_toolbar = false;
-        $helper->submit_action = '';
-        $helper->fields_value = $fields_value;
-
-        return $this->guiHeader.$helper->generateForm($fields_form);
     }
 
     public function hookDisplayAdminOrder($params)
@@ -1243,7 +757,7 @@ class OcaEpak extends CarrierModule
         $address = new Address($params['cart']->id_address_delivery);
         $currency = new Currency($params['cart']->id_currency);
         $order = new Order($params['id_order']);
-        $customer = new Customer($order->id_customer);
+        //$customer = new Customer($order->id_customer);
         $cartData = $this->getCartPhysicalData($params['cart']);
         $shipping = $params['cart']->getTotalShippingCost(NULL, FALSE);
         $totalToPay = Tools::ps_round($this->getTotalWithFee($shipping, $op->addfee), 2);
@@ -1253,6 +767,7 @@ class OcaEpak extends CarrierModule
             $response = $this->_getSoapClient()->Tarifar_Envio_Corporativo(array(
                 'PesoTotal' => $cartData['weight'],
                 'VolumenTotal' => $cartData['volume'],
+                'ValorDeclarado' => $cartData['cost'],
                 'CodigoPostalOrigen' => Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'),
                 'CodigoPostalDestino' => self::cleanPostcode($address->postcode),
                 'CantidadPaquetes' => 1,
@@ -1260,135 +775,34 @@ class OcaEpak extends CarrierModule
                 'Operativa' => $op->reference
             ));
             $xml = new SimpleXMLElement($response->Tarifar_Envio_CorporativoResult->any);
-            if (!$xml->count())
+            if (!count($xml->children()))
                 throw new Exception($this->l('No results received from OCA webservice'));
             $data = $xml->NewDataSet->Table;
-            $quote = Tools::ps_round($this->convertCurrencyFromArs($data->Precio, $params['cart']->id_currency), 2);
+            $quote = Tools::ps_round($this->convertCurrencyFromArs($data->Total, $params['cart']->id_currency), 2);
+            $quoteError = null;
         } catch (Exception $e) {
-            $quote = $e->getMessage();
+            $quoteError = $e->getMessage();
+            $data = null;
+            $quote = null;
         }
-
-        if (Tools::isSubmit('oca-order-submit')) {
-            if ($preOrder = $this->_getValidateOcaForm($cartData)) {
-                $costCenter = 0;
-                $xmlRetiro = OcaEpakOrder::generateOrderXml(array(
-                    'address' => $address,
-                    'operative' => $op,
-                    'order' => $order,
-                    'customer' => $customer,
-                    'boxes' => $preOrder['boxes'],
-                    'cost_center_id' => in_array($op->type, array('PaP', 'PaS')) ? '0' : '1',
-                    'imposition_center_id' => $relay->distribution_center_id
-                ));
-                //**/Tools::dieObject($_POST);
-                /**Tools::dieObject([$xmlRetiro, array(
-                    'usr' => Configuration::get(self::CONFIG_PREFIX.'_EMAIL'),
-                    'psw' => Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'))]);/**/
-                try {
-                    $response = $this->_getSoapClient()->IngresoOR(array(
-                        'usr' => Configuration::get(self::CONFIG_PREFIX.'_EMAIL'),
-                        'psw' => Configuration::get(self::CONFIG_PREFIX.'_PASSWORD'),
-                        'XML_Retiro' => $xmlRetiro,
-                        'ConfirmarRetiro' => 0,
-                        'DiasRetiro' => $preOrder['days'],
-                        'FranjaHoraria' => Configuration::get(self::CONFIG_PREFIX.'_TIMESLOT'),
-                    ));
-                    //**/Tools::dieObject($response);
-                    /*$response = '<diffgr:diffgram xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:diffgr="urn:schemas-microsoft-com:xml-diffgram-v1"><Resultado xmlns=""><Resumen diffgr:id="Resumen1" msdata:rowOrder="0"><CodigoOperacion>2458171</CodigoOperacion><FechaIngreso>2014-08-19T16:41:25.18-03:00</FechaIngreso><mailUsuario>info@abundance-store.com</mailUsuario><origen/><CantidadRegistros>1</CantidadRegistros><CantidadIngresados>1</CantidadIngresados><CantidadRechazados>0</CantidadRechazados></Resumen></Resultado></diffgr:diffgram>';
-                    //$xml = new SimpleXMLElement($response->IngresoORResult->any);
-                    $response = '<diffgr:diffgram xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:diffgr="urn:schemas-microsoft-com:xml-diffgram-v1"/>';*/
-                    $xml = new SimpleXMLElement($response->IngresoORResult->any);
-                    //**/$xml = new SimpleXMLElement($response);
-                    if (!$xml->count())
-                        throw new Exception($this->l('Error generating OCA order'));
-                    if (count($xml->Errores))
-                        throw new Exception($this->l('Error generating OCA order').': '.$xml->Errores->Error->Descripcion);
-                    $data = $xml->Resultado->Resumen;
-                    //**/Tools::dieObject($xml->count());
-                    //**/Tools::dieObject($data);
-                    $ocaOrder = new OcaEpakOrder();
-                    $ocaOrder->id_order = $order->id;
-                    $ocaOrder->reference = $data->CodigoOperacion;
-                    $ocaOrder->tracking = '';
-                    $ocaOrder->status = $this->l('Added to cart').": {$data->CantidadIngresados}; ".$this->l('Rejected').": {$data->CantidadRechazados}; ";
-                    $ocaOrder->save();
-                    unset($ocaOrder);
-                } catch (Exception $e) {
-                    //**/Tools::dieObject($response);
-                    $this->_addToHeader($this->displayError($e->getMessage()));
-                    //**/Tools::dieObject($e->getMessage());
-                    //**/Tools::dieObject('Error with generated xml: '.$xmlRetiro);
-                    //Logger::AddLog('Ocaepak: '.$this->l('error getting online price for cart')." {$cart->id}");
-                }
-            } else
-                $this->_addToHeader($this->l('There is an error in the OCA order generator form'));
-        }
-        if ($ocaOrder = OcaEpakOrder::getByFieldId('id_order', $order->id)) {
-            ob_start();
-            ?>
-            <div>
-                <?php echo $this->l('OCA Order Id') . ": {$ocaOrder->reference}"; ?><br />
-                <?php echo $this->l('Status') . ": {$ocaOrder->status}"; ?><br />
-                <?php echo $this->l('Tracking') . ": {$ocaOrder->tracking}"; ?><br />
-                Sticker Button goes here<br />
-                Cancel Order Button goes here<br />
-            </div>
-            <?php
-            $form = ob_get_clean();
-        } elseif (Configuration::get(self::CONFIG_PREFIX.'_ENABLE_PICKUP_ORDERS') && (in_array($op->type, array('PaS', 'SaS')) && $relay && $relay->distribution_center_id) || in_array($op->type, array('PaP', 'SaP')))
-            $form = $this->renderOrderGeneratorForm($op->type);
-        elseif (Configuration::get(self::CONFIG_PREFIX.'_ENABLE_PICKUP_ORDERS'))
-            $form = $this->l('OCA order generator unavailable for this Prestashop order');
-        else
-            $form = '';
-        //Tools::dieObject($op->type);
+        $distributionCenter = array();
         if (in_array($op->type, array('PaS','SaS')) && ($relay)) {
             $distributionCenter = $this->_retrieveOcaBranchData($relay->distribution_center_id);
-        } else
-            $distributionCenter = false;
-        //**/Tools::dieObject($distributionCenter);
-
-        ob_start();
-        ?>
-        <fieldset class="panel" >
-            <legend><img src="../modules/<?php echo self::MODULE_NAME; ?>/logo.gif" alt="logo" /><?php echo $this->l('OCA ePak Information'); ?></legend>
-            <div class="form-group">
-                <?php echo $this->l('Operative') . ": {$op->reference}"; ?><br />
-                <?php echo $this->l('Operative Type') . ": {$op->type} ".($op->insured ? $this->l('Insured') : ''); ?><br />
-                <?php echo $this->l('Calculated Order Weight') . ": {$cartData['weight']} kg"; ?><br />
-                <?php echo $this->l('Calculated Order Volume (with padding)') . ": {$cartData['volume']} m³"; ?><br />
-                <?php if ($paidFee != 0):
-                    echo $this->l('Additional fee') . ": {$currency->sign}{$paidFee}";
-                endif; ?><br />
-                <?php if (count($distributionCenter)): ?>
-                    <?php echo $this->l('Delivery branch selected by customer').': "'.trim($distributionCenter['Descripcion'])."\", {$distributionCenter['Calle']} {$distributionCenter['Numero']} {$distributionCenter['Piso']}, {$distributionCenter['Localidad']} {$distributionCenter['codigopostal']}"; ?><br />
-                <!--<div class="panel">
-                    <div class="panel-heading">
-
-                    </div>
-                    <div class="panel-body">
-                        <?php /* echo $distributionCenter['Descripcion'];  */?><br/>
-                        <?php /* echo "{$distributionCenter['Calle']} {$distributionCenter['Numero']} {$distributionCenter['Piso']}, {$distributionCenter['Localidad']} {$distributionCenter['codigopostal']}";  */?>
-                    </div>
-                </div>-->
-                <?php endif; ?>
-                <?php if (is_string($quote)): ?>
-                    <div class="warn">
-                         <?php  echo $quote;  ?>
-                    </div>
-                <?php  else: ?>
-                    <?php echo $this->l('Live quote') . ": {$currency->sign}{$quote}"; ?><br />
-                <?php endif; ?>
-            </div>
-            <div class="form-group">
-                <?php  echo $form;  ?>
-            </div>
-        </fieldset>
-        <?php
-        return ob_get_clean();
+            //**/Tools::dieObject($distributionCenter);
+        }
+        $this->context->smarty->assign(  array(
+            'moduleName' => self::MODULE_NAME,
+            'currencySign' => $currency->sign,
+            'operative' => $op,
+            'cartData' => $cartData,
+            'quote' => $quote,
+            'quoteData' => $data,
+            'quoteError' => $quoteError,
+            'paidFee' => $paidFee,
+            'distributionCenter' => $distributionCenter,
+        ) );
+        return $this->display(__FILE__, _PS_VERSION_ < '1.6' ? 'displayAdminOrder15.tpl' : 'displayAdminOrder.tpl');
     }
-
-    public function hookActionCartSave($params) { return NULL; }    ## @todo async price check
 
     /**
      * Show pickup options
@@ -1399,32 +813,42 @@ class OcaEpak extends CarrierModule
         //return '<pre>'.print_r($this->getCartPhysicalData($params['cart']), TRUE).'</pre>';
         if (!$this->active OR $params['address']->id_country != Country::getByIso('AR'))
             return FALSE;
-        //$ops = array_merge(OcaEpakOperative::getOperativeIds(false, 'type', 'PaS'), OcaEpakOperative::getOperativeIds(false, 'type', 'SaS'));
         $carrierIds = OcaEpakOperative::getRelayedCarrierIds();
         if (count($carrierIds)) {
+            $this->context->controller->addJS('http'.((Configuration::get('PS_SSL_ENABLED') && Configuration::get('PS_SSL_ENABLED_EVERYWHERE')) ? 's' : '').'://maps.google.com/maps/api/js?sensor=true&region=AR');
+            //$this->context->controller->addJS(_THEME_JS_DIR_.'stores.js');
             try {
-                $response = $this->_getSoapClient()->GetCentrosImposicionPorCP(array(
+                $response = $this->_getSoapClient()->GetCentrosImposicion/*PorCP*/(array(
                     'CodigoPostal' => self::cleanPostcode($params['address']->postcode)
                 ));
-                $xml = new SimpleXMLElement($response->GetCentrosImposicionPorCPResult->any);
-
+                $xml = new SimpleXMLElement($response->GetCentrosImposicionResult->any);
                 if (!count($xml->children()))
                     return NULL;
                 $relays = array();
                 foreach ($xml->NewDataSet->children() as $table) {
                     $relays[] = Tools::jsonDecode(str_replace('{}', '""', Tools::jsonEncode((array)$table)), TRUE);
                 }
+                $coordTree = OcaEpakGeocoding::getCoordinateTree();
+                foreach ($relays as $idx => $rel) {
+                    if (count($coords = OcaEpakGeocoding::getOcaBranchCoordinates($rel,  $coordTree))) {
+                        $relays[$idx]['lat'] = $coords[0];
+                        $relays[$idx]['lng'] = $coords[1];
+                    }
+                }
+                $relay = OcaEpakRelay::getByCartId($this->context->cookie->id_cart);
                 $this->context->smarty->assign(  array(
+                    'customerAddress' => $params['address'],
                     'ocaepak_relays' => $relays,
                     'relayed_carriers' => Tools::jsonEncode($carrierIds),
                     'ocaepak_name' => $this->name,
-                    'ocaepak_selected_relay' => OcaEpakRelay::getByCartId($this->context->cookie->id_cart)->distribution_center_id
-                    //'ocaepak_relay_url' => $this->context->link->getModuleLink($this->name, 'relay',$params)
+                    'ocaepak_selected_relay' => $relay ? $relay->distribution_center_id : null,
+                    'psver' => _PS_VERSION_,
+                    'force_ssl' => Configuration::get('PS_SSL_ENABLED') || Configuration::get('PS_SSL_ENABLED_EVERYWHERE')
                 ) );
                 return $this->display(__FILE__, 'displayCarrierList.tpl');
             } catch (Exception $e) {
-                //**/Tools::dieObject($e);
-                Logger::AddLog('Ocaepak: '.$this->l('error getting pickup centers for cp')." {$params['address']->postcode}");
+                /**/Tools::dieObject($e);
+                Logger::AddLog('Ocaepak: '.$this->l('Error getting pickup centers for cp')." {$params['address']->postcode}");
                 return FALSE;
             }
         }
@@ -1452,9 +876,12 @@ class OcaEpak extends CarrierModule
             return $shipping_cost;
         try {
             $cartData = $this->getCartPhysicalData($cart);
+            if ($cot = OcaEpakQuote::retrieve($op->reference, self::cleanPostcode($address->postcode), Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'), $cartData['volume'], $cartData['weight'], $cartData['cost']))      //get cache
+                return (float)Tools::ps_round($shipping_cost+$this->convertCurrencyFromArs($this->getTotalWithFee($cot, $op->addfee), $cart->id_currency), 2);
             $response = $this->_getSoapClient()->Tarifar_Envio_Corporativo(array(
                 'PesoTotal' => $cartData['weight'],
                 'VolumenTotal' => $cartData['volume'],
+                'ValorDeclarado' => $cartData['cost'],
                 'CodigoPostalOrigen' => Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'),
                 'CodigoPostalDestino' => self::cleanPostcode($address->postcode),
                 'CantidadPaquetes' => 1,
@@ -1465,11 +892,13 @@ class OcaEpak extends CarrierModule
             if (!count($xml->children()))
                 throw new Exception('No results from OCA webservice');
             $data = $xml->NewDataSet->Table;
+            if ($data->Total > 0)       //set cache
+                OcaEpakQuote::insert($op->reference, self::cleanPostcode($address->postcode), Configuration::get(self::CONFIG_PREFIX.'_POSTCODE'), $cartData['volume'], $cartData['weight'], $cartData['cost'], $data->Total);
         } catch (Exception $e) {
             Logger::AddLog('Ocaepak: '.$this->l('error getting online price for cart')." {$cart->id}");
             return (float)$this->convertCurrencyFromArs(Configuration::get(self::CONFIG_PREFIX.'_FAILCOST'), $cart->id_currency);
         }
-        return (float)Tools::ps_round($shipping_cost+$this->convertCurrencyFromArs($this->getTotalWithFee($data->Precio, $op->addfee), $cart->id_currency), 2);
+        return (float)Tools::ps_round($shipping_cost+$this->convertCurrencyFromArs($this->getTotalWithFee($data->Total, $op->addfee), $cart->id_currency), 2);
     }
     public function getOrderShippingCostExternal($params)
     {
@@ -1482,6 +911,21 @@ class OcaEpak extends CarrierModule
         $weight = 0;
         $volume = 0;
         $cost = 0;
+        switch (Configuration::get('PS_DIMENSION_UNIT')) {
+            case 'm':
+                $divider = 1;
+                $padding = self::PADDING/100;
+                break;
+            case 'in':
+                $divider = 39.37*39.37*39.37;  //39.37 in to 1 m
+                $padding = self::PADDING*0.3937;
+                break;
+            case 'cm':
+            default:
+                $divider = 1000000;
+                $padding = self::PADDING;
+                break;
+        }
         foreach ($products as $product) {
             $productObj = new Product($product['id_product']);
             $carriers = $productObj->getCarriers();
@@ -1497,7 +941,7 @@ class OcaEpak extends CarrierModule
             $weight += ($product['weight'] > 0 ? $product['weight'] : Configuration::get(self::CONFIG_PREFIX.'_DEFWEIGHT')) * $product['cart_quantity'];
             $volume += (
                 $product['width']*$product['height']*$product['depth'] > 0 ?
-                    (($product['width']+2*self::PADDING)*($product['height']+2*self::PADDING)*($product['depth']+2*self::PADDING))/1000000 :
+                    (($product['width']+2*$padding)*($product['height']+2*$padding)*($product['depth']+2*$padding))/$divider :
                     Configuration::get(self::CONFIG_PREFIX.'_DEFVOLUME')
             )*$product['cart_quantity'];
             $cost += $product['total_wt'];
@@ -1533,74 +977,6 @@ class OcaEpak extends CarrierModule
         return strpos($fee, '%') ? $netAmount*(1+(float)Tools::substr($fee, 0, -1)/100) : $netAmount+(float)$fee;
     }
 
-    protected function _getValidateOcaForm($cartData)
-    {
-        if (is_numeric(Tools::getValue('oca-days', false))) {
-            //$cartData = $this->getCartPhysicalData($cart);
-            $form = array(
-                //'time' => (int)Tools::getValue('oca-time'),
-                'days' => (int)Tools::getValue('oca-days', 0),
-                //'observations' => trim(Tools::getValue('oca-observations'), ''),
-                'boxes' => array()
-            );
-            $boxes = Tools::jsonDecode(Configuration::get(self::CONFIG_PREFIX.'_BOXES'), true);
-            $boxVolume = 0;
-            //$boxNum = 0;
-            /*while (Tools::getIsset('oca-box-q-'.($boxNum))) {
-                if (!is_numeric(Tools::getValue('oca-box-q-'.$boxNum, 0)))
-                    return false;
-                if (Tools::getValue('oca-box-q-'.$boxNum, 0) == 0)
-                    continue;
-                $form['boxes'][$boxNum] = array(
-                    'l' => number_format((float)Tools::getValue('oca-box-l-'.$boxNum), 2),
-                    'd' => number_format((float)Tools::getValue('oca-box-d-'.$boxNum), 2),
-                    'h' => number_format((float)Tools::getValue('oca-box-h-'.$boxNum), 2),
-                    'w' => number_format((float)Tools::getValue('oca-box-w-'.$boxNum), 2),
-                    'v' => number_format((float)Tools::getValue('oca-box-v-'.$boxNum), 2),
-                );
-                $boxNum++;
-            }*/
-            foreach ($boxes as $ind => $box) {
-                if (!is_numeric(Tools::getValue('oca-box-q-'.$ind, 0)))
-                    return false;
-                if (Tools::getValue('oca-box-q-'.$ind, 0) <= 0)
-                    continue;
-                $form['boxes'][] = array(
-                    'l' => number_format((float)$box['l'], 0),
-                    'd' => number_format((float)$box['d'], 0),
-                    'h' => number_format((float)$box['h'], 0),
-                    'q' => Tools::getValue('oca-box-q-'.$ind),
-                    /*'w' => number_format((float)$box['w'], 2),
-                    'v' => number_format((float)Tools::getValue('oca-box-v-'.$boxNum), 2),*/
-                );
-                $boxVolume = $boxVolume+($box['l']*$box['d']*$box['h'])*Tools::getValue('oca-box-q-'.$ind);
-            }
-            if (count($form['boxes']) == 0) {
-                $side = pow($cartData['volume'], 1/3);
-                $form['boxes'][] = array(
-                    'l' => number_format($side, 0),
-                    'd' => number_format($side, 0),
-                    'h' => number_format($side, 0),
-                    'w' => number_format((float)$cartData['weight'], 2),
-                    'v' => number_format((float)$cartData['cost'], 2),
-                    'q' => 1,
-                );
-            } else {
-                foreach ($form['boxes'] as &$box) {      //split cost and weight proportionally
-                    $vol = ($box['l']*$box['d']*$box['h']);
-                    $volumePercentage = $vol/$boxVolume;
-                    $box['v'] = number_format((float)$volumePercentage*$cartData['cost'], 2);
-                    $box['w'] = number_format((float)$volumePercentage*$cartData['weight'], 2);
-                }
-            }
-            //**/Tools::dieObject(array($form, $volumePercentage, $vol));
-            return $form;
-        }
-
-        ### @todo add error display
-        return false;
-    }
-
     protected function _getSoapClient()
     {
         if (!is_null($this->soapClient))
@@ -1614,23 +990,6 @@ class OcaEpak extends CarrierModule
         return $this->soapClient;
     }
 
-    protected function _getCostCenter($operativeReference)
-    {
-        try {
-            $response = $this->_getSoapClient()->GetCentroCostoPorOperativa(array(
-                'Cuit' => Configuration::get(self::CONFIG_PREFIX.'_CUIT'),
-                'Operativa' => $operativeReference
-            ));
-            $xml = new SimpleXMLElement($response->DataSet);
-            if (!count($xml->children()))
-                throw new Exception('No results from OCA webservice');
-            $data = $xml->NewDataSet->Table;
-        } catch (Exception $e) {
-            //Logger::AddLog('Ocaepak: '.$this->l('error getting online price for cart')." {$cart->id}");
-            //return (float)$this->convertCurrencyFromArs(Configuration::get(self::CONFIG_PREFIX.'_FAILCOST'), $cart->id_currency);
-        }
-    }
-
     protected function _retrieveOcaBranchData($id_branch)
     {
         try {
@@ -1639,17 +998,12 @@ class OcaEpak extends CarrierModule
 
             if (!count($xml->children()))
                 return NULL;
-            //$relays = array();
-            //**/Tools::dieObject($xml);
             foreach ($xml->NewDataSet->children() as $table) {
-                //**/Tools::dieObject([$id_branch, (int)$table->idCentroImposicion]);
                 if (trim((string)$table->idCentroImposicion) == $id_branch)
                     return Tools::jsonDecode(str_replace('{}', '""', Tools::jsonEncode((array)$table)), TRUE);
             }
         } catch (Exception $e) {
-            //**/Tools::dieObject($e);
-            Logger::AddLog('Ocaepak: '.$this->l('error getting pickup centers'));
-            //return FALSE;
+            Logger::AddLog('Ocaepak: '.$this->l('Error getting pickup centers for branch')." {$id_branch}");
         }
         return false;
     }
@@ -1678,36 +1032,17 @@ class OcaEpak extends CarrierModule
             return Tools::strlen($clean) > $maxLength ? Tools::substr($clean, 0, $maxLength) : $clean;
     }
 
-    /**
-     * @param $address Address
-     */
-    protected function _parseOcaAddress($address)
+    public function interpolateSqlFile($fileName, $replacements)
     {
-        $other = Tools::strlen($address->other) ? '('.$address->other.')' : '';
-        $fullAddress =  trim(str_replace(array("\n", "\r"), ' ', ($address->address1.' '.$address->address2.' '.$other)), "\t\n\r");
-        $matches = array();
-        if (preg_match('/^(\d*\D+)$/x', $fullAddress, $matches)) {      //if no numbers after street
-            $ocaAddress = array(
-                'street' => $this->_cleanOcaAttribute($matches[1], self::OCA_STREET_LENGTH),
-                'number' => 0,
-                'observations' => $this->_cleanOcaAttribute($fullAddress, self::OCA_OBSERVATIONS_LENGTH, true)
-            );
-        } elseif (preg_match('/^(\d+)[-\/]*(\d+)$/', $fullAddress, $matches)) {      //if 2 numbers
-            $ocaAddress = array(
-                'street' => $this->_cleanOcaAttribute($matches[1], self::OCA_STREET_LENGTH),
-                'number' => $this->_cleanOcaAttribute($matches[2], self::OCA_STREET_LENGTH),
-                'observations' => $this->_cleanOcaAttribute($fullAddress, self::OCA_OBSERVATIONS_LENGTH, true)
-            );
-        } elseif (preg_match('/^(\d*[^0-9]+)(\d+)(\D+)/', $fullAddress, $matches)) {
-            $ocaAddress = array(
-                'street' => $this->_cleanOcaAttribute($matches[1], self::OCA_STREET_LENGTH),
-                'number' => $this->_cleanOcaAttribute($matches[2], self::OCA_STREET_LENGTH),
-                'observations' => $this->_cleanOcaAttribute($fullAddress, self::OCA_OBSERVATIONS_LENGTH, true)
-            );
-        } else
-            throw new Exception('Unable to parse address');
+        $filePath = _PS_MODULE_DIR_."{$this->name}/sql/{$fileName}.sql";
+        if (!file_exists($filePath))
+            throw new Exception('Wrong SQL Interpolation File Name: '.$fileName);
+        $file = file_get_contents($filePath);
+        foreach ($replacements as $var => $repl) {
+            $replacements[$var] = pSQL($repl);
+        }
+        return str_replace(array_keys($replacements), array_values($replacements), $file);
 
-        return $ocaAddress;
     }
 
 }
