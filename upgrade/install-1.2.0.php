@@ -25,37 +25,27 @@ if (!defined('_PS_VERSION_'))
 
 function upgrade_module_1_2_0($module) {
     // Process Module upgrade for new api quote cache
+    if (!class_exists('KznCarrier'))
+        include_once _PS_MODULE_DIR_."{$module->name}/classes/KznCarrier.php";
     return (
         Db::getInstance()->execute(
             'DROP TABLE `'.pSQL(_DB_PREFIX_.OcaEpak::QUOTES_TABLE).'`'
         ) AND
         Db::getInstance()->Execute(
-        /*'CREATE TABLE IF NOT EXISTS `' . pSQL(_DB_PREFIX_ . OcaEpak::QUOTES_TABLE) . '` (
-            `reference` INT UNSIGNED NOT NULL,
-            `postcode` INT UNSIGNED NOT NULL,
-            `origin` INT UNSIGNED NOT NULL,
-            `volume` float unsigned NOT NULL,
-            `weight` float unsigned NOT NULL,
-            `value` float unsigned NOT NULL,
-            `price` float NOT NULL,
-            `date` datetime NOT NULL,
-            PRIMARY KEY (`reference`,`postcode`,`origin`,`volume`,`weight`,`value`),
-            UNIQUE KEY `quote` (`reference`,`postcode`,`origin`,`volume`,`weight`,`value`)
-        )'*/
-            $module->interpolateSqlFile('create-quotes-table', array(
+            KznCarrier::interpolateSqlFile($module->name, 'create-quotes-table', array(
                 '{$DB_PREFIX}' => _DB_PREFIX_,
                 '{$TABLE_NAME}' => OcaEpak::QUOTES_TABLE,
             ))
         ) AND
         Db::getInstance()->Execute(
-            $module->interpolateSqlFile('create-geocodes-table', array(
+            KznCarrier::interpolateSqlFile($module->name, 'create-geocodes-table', array(
                 '{$DB_PREFIX}' => _DB_PREFIX_,
                 '{$TABLE_NAME}' => OcaEpak::GEOCODES_TABLE,
                 '{$TABLE_ID}' => OcaEpak::GEOCODES_ID
             ))
         ) AND
         Db::getInstance()->Execute(
-            $this->interpolateSqlFile('populate-geocodes-table', array(
+            KznCarrier::interpolateSqlFile($module->name, 'populate-geocodes-table', array(
                 '{$DB_PREFIX}' => _DB_PREFIX_,
                 '{$TABLE_NAME}' => OcaEpak::GEOCODES_TABLE,
                 '{$TABLE_ID}' => OcaEpak::GEOCODES_ID

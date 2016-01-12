@@ -16,47 +16,28 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.1.3
+ *  @file-version 1.2
  *}
 
 <fieldset>
     <legend><img src="../modules/{$moduleName|trim|escape:'htmlall':'UTF-8'}/logo.gif" alt="logo" /> {l s='OCA ePak Information' mod='ocaepak'}</legend>
-    <div class="row">
-        <div class="col-xs-6">
-            {if !empty($quoteError)}
-                <div class="alert alert-danger">
-                    {$quoteError|trim|escape:'htmlall':'UTF-8'}
-                </div>
-            {/if}
-            {l s='Operative' mod='ocaepak'}: <b>{$operative->reference|trim|escape:'htmlall':'UTF-8'} ({$operative->type|trim|escape:'htmlall':'UTF-8'}{if $operative->insured} {l s='Insured' mod='ocaepak'}{/if})</b><br/>
-            {l s='Calculated Order Weight' mod='ocaepak'}: <b>{$cartData['weight']|trim|escape:'htmlall':'UTF-8'} kg</b><br/>
-            {l s='Calculated Order Volume (with padding)' mod='ocaepak'}: <b>{$cartData['volume']|trim|escape:'htmlall':'UTF-8'} m³</b><br/>
-            {if !empty($quoteData)}
-                {l s='Delivery time estimate' mod='ocaepak'}: <b>{$quoteData->PlazoEntrega|trim|escape:'htmlall':'UTF-8'} {l s='working days' mod='ocaepak'}</b><br/>
-                    {/if}
-            {if ($paidFee != 0)}
-                {l s='Additional fee' mod='ocaepak'}: <b>{$currencySign|trim|escape:'htmlall':'UTF-8'}{$paidFee|trim|escape:'htmlall':'UTF-8'}</b><br/>
-                {/if}
-            {if $quote}
-                {l s='Live quote' mod='ocaepak'}: <b>{$currencySign|trim|escape:'htmlall':'UTF-8'}{$quote|trim|escape:'htmlall':'UTF-8'}</b><br/><br/>
-                {/if}
-        </div>
-        <div class="col-xs-6">
-            {if !empty($distributionCenter)}
-                {l s='Delivery branch selected by customer' mod='ocaepak'}: <b>{$distributionCenter['Descripcion']|trim|lower|capitalize|escape:'htmlall':'UTF-8'}</b><br/>
-                {l s='Branch ID' mod='ocaepak'}: <b>{$distributionCenter['idCentroImposicion']|trim|escape:'htmlall':'UTF-8'}</b><br/>
-            {l s='Branch Code' mod='ocaepak'}: <b>{$distributionCenter['Sigla']|trim|escape:'htmlall':'UTF-8'}</b><br/>
-            {l s='Branch Address' mod='ocaepak'}: <br/>
-                <b>
-                    {$distributionCenter['Calle']|trim|lower|capitalize|escape:'htmlall':'UTF-8'} {$distributionCenter['Numero']|trim|lower|capitalize|escape:'htmlall':'UTF-8'}<br/>
-                    {if ($distributionCenter['Piso']|trim) != ''}
-                        {l s='Floor' mod='ocaepak'} :
-                        {$distributionCenter['Piso']|trim|lower|capitalize|escape:'htmlall':'UTF-8'}<br/>
-                    {/if}
-                    {$distributionCenter['Localidad']|trim|lower|capitalize|escape:'htmlall':'UTF-8'}
-            </b><br/>
-            {l s='Branch Post Code' mod='ocaepak'}: <b>{$distributionCenter['CodigoPostal']|trim|escape:'htmlall':'UTF-8'}</b><br/>
-            {/if}
-        </div>
+    <div id="oca-ajax-container" class="text-center" style="text-align: center;">
+        <h3>{l s='Loading' mod='ocaepak'}...</h3>
+        <img src="../img/loadingAnimation.gif" alt="{l s='Loading' mod='ocaepak'}">
     </div>
 </fieldset>
+<script>{literal}
+    $(document).ready(function() {
+        $.ajax({
+            url: {/literal}'{$ocaAjaxUrl|escape:'quotes':'UTF-8'}'{literal},
+            data: {
+                ajax: true,
+                action: 'carrier',
+                order_id: {/literal}'{$ocaOrderId|escape:'htmlall':'UTF-8'}'{literal}
+            },
+            success : function(result){
+                $('#oca-ajax-container').replaceWith(result);
+            }
+        });
+    });
+</script>{/literal}

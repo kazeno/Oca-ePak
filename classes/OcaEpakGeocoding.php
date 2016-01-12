@@ -17,12 +17,14 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.2
+ *  @file-version 1.3
  */
 
 class OcaEpakGeocoding extends ObjectModel
 {
-    const GEOCODER_URL = 'http://maps.googleapis.com/maps/api/geocode/json?sensor=false&region=ar&address=';
+    const GEOCODER_URL = 'http://maps.googleapis.com/maps/api/geocode/json?region=ar&address=';
+    const SERVICE_ADMISSION = 1;
+    const SERVICE_DELIVERY = 2;
 
     public $description;
     public $street;
@@ -59,37 +61,42 @@ class OcaEpakGeocoding extends ObjectModel
 
     public static function getCoordinateTree()
     {
-        $entries = static::retrieveAll();
-        return static::treeBuilder($entries, array('province', 'locality', 'street', 'number', 'latitude', 'longitude'));
+        $entries = self::retrieveAll();
+        return self::treeBuilder($entries, array('province', 'locality', 'street', 'number', 'latitude', 'longitude'));
     }
 
     public static function getOcaBranchCoordinates($ocaBranch, $coordTree)
     {
         if (
-            isset($coordTree[$ocaBranch['Descripcion1']])
-            && isset($coordTree[$ocaBranch['Descripcion1']][$ocaBranch['Localidad']])
-            && isset($coordTree[$ocaBranch['Descripcion1']][$ocaBranch['Localidad']][$ocaBranch['Calle']])
-            && isset($coordTree[$ocaBranch['Descripcion1']][$ocaBranch['Localidad']][$ocaBranch['Calle']][$ocaBranch['Numero']])
+            isset($coordTree[$ocaBranch['Provincia']])
+            && isset($coordTree[$ocaBranch['Provincia']][$ocaBranch['Localidad']])
+            && isset($coordTree[$ocaBranch['Provincia']][$ocaBranch['Localidad']][$ocaBranch['Calle']])
+            && isset($coordTree[$ocaBranch['Provincia']][$ocaBranch['Localidad']][$ocaBranch['Calle']][(!is_array($ocaBranch['Numero']) ? $ocaBranch['Numero'] : ' ')])
         ) {
-            return $coordTree[$ocaBranch['Descripcion1']][$ocaBranch['Localidad']][$ocaBranch['Calle']][$ocaBranch['Numero']];
+            return $coordTree[$ocaBranch['Provincia']][$ocaBranch['Localidad']][$ocaBranch['Calle']][(!is_array($ocaBranch['Numero']) ? $ocaBranch['Numero'] : ' ')];
         }
-        if (!($json_string = static::baseRequest(static::joinAddressString($ocaBranch))))
-            return false;
-        $json = Tools::jsonDecode($json_string, true);
-        if (!count($json['results']) || !isset($json['results'][0]['geometry']))
-            return false;
-        $lat = (string)$json['results'][0]['geometry']['location']['lat'];
-        $lng = (string)$json['results'][0]['geometry']['location']['lng'];
+        if (isset($ocaBranch['Latitud']) && isset($ocaBranch['Longitud']) && Tools::strlen(trim($ocaBranch['Latitud'])) && Tools::strlen(trim($ocaBranch['Longitud']))) {
+            $lat = trim($ocaBranch['Latitud']);
+            $lng = trim($ocaBranch['Longitud']);
+        } else {
+            if (!($json_string = self::baseRequest(self::joinAddressString($ocaBranch))))
+                return false;
+            $json = Tools::jsonDecode($json_string, true);
+            if (!count($json['results']) || !isset($json['results'][0]['geometry']))
+                return false;
+            $lat = (string)$json['results'][0]['geometry']['location']['lat'];
+            $lng = (string)$json['results'][0]['geometry']['location']['lng'];
+        }
         $_POST['forceIDs'] = 1;     //Force to save ids on PS < 1.6
-        $prev = new OcaEpakGeocoding($ocaBranch['idCentroImposicion']);
+        $prev = new OcaEpakGeocoding($ocaBranch['IdCentroImposicion']);
         $og = new OcaEpakGeocoding();
         $og->force_id = true;
-        $og->id = $ocaBranch['idCentroImposicion'];
-        $og->description = $ocaBranch['Descripcion'];
+        $og->id = $ocaBranch['IdCentroImposicion'];
+        $og->description = $ocaBranch['Sucursal'];
         $og->street = $ocaBranch['Calle'];
-        $og->number = strlen($ocaBranch['Numero']) ? $ocaBranch['Numero'] : ' ';
+        $og->number = (!is_array($ocaBranch['Numero']) && Tools::strlen($ocaBranch['Numero'])) ? $ocaBranch['Numero'] : ' ';
         $og->locality = $ocaBranch['Localidad'];
-        $og->province = $ocaBranch['Descripcion1'];
+        $og->province = $ocaBranch['Provincia'];
         $og->latitude = $lat;
         $og->longitude = $lng;
         $prev->id ? $og->update() : $og->add();
@@ -150,6 +157,6 @@ class OcaEpakGeocoding extends ObjectModel
 
     protected static function joinAddressString($ocaBranch)
     {
-        return $ocaBranch['Calle'].' '.$ocaBranch['Numero'].' '.$ocaBranch['Localidad'].' '.$ocaBranch['Descripcion1'].' Argentina';
+        return $ocaBranch['Calle'].' '.$ocaBranch['Numero'].' '.$ocaBranch['Localidad'].' '.$ocaBranch['Provincia'].' Argentina';
     }
 }
