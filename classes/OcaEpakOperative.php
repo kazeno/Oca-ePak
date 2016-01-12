@@ -99,8 +99,10 @@ class OcaEpakOperative extends ObjectModel
         $rangeWeight = new RangeWeight();
         $rangeWeight->delimiter1 = '0';
         $rangeWeight->delimiter2 = '10000';
+        if (!$carrier->add())
+            return false;
+        $carrier = new Carrier($carrier->id);   //reload carrier to get reference
         return (
-            $carrier->add() AND
             (method_exists('Carrier', 'setGroups') ? $carrier->setGroups($groups) : $this->setCarrierGroups($carrier, $groups)) AND
             $carrier->addZone(Country::getIdZone(Country::getByIso('AR'))) AND
             ($rangePrice->id_carrier = $rangeWeight->id_carrier = (int)$carrier->id) AND
@@ -114,7 +116,7 @@ class OcaEpakOperative extends ObjectModel
 
     public function update($null_values = false)
     {
-        $carrier = new Carrier($this->id_carrier);
+        $carrier = Carrier::getCarrierByReference($this->carrier_reference);
         $languages = Language::getLanguages(true);
         foreach ($languages as $language)
         {
@@ -128,7 +130,7 @@ class OcaEpakOperative extends ObjectModel
 
     public function delete()
     {
-        $carrier = new Carrier($this->id_carrier);
+        $carrier = Carrier::getCarrierByReference($this->carrier_reference);
         $carrier->deleted = true;
         return (
             $carrier->update() AND
@@ -154,7 +156,7 @@ class OcaEpakOperative extends ObjectModel
 
     public static function getOperativeIds($returnObjects=false, $filter_column=NULL, $filter_value=NULL)
     {
-        if (!is_null($filter_column) && !in_array($filter_column, array(OcaEpak::OPERATIVES_ID, 'id_carrier', 'reference', 'description', 'addfee', 'id_shop', 'type')))
+        if (!is_null($filter_column) && !in_array($filter_column, array(OcaEpak::OPERATIVES_ID, 'carrier_reference', 'description', 'addfee', 'id_shop', 'type')))
             return false;
         ob_start(); ?>
             SELECT `<?php echo pSQL(OcaEpak::OPERATIVES_ID); ?>`

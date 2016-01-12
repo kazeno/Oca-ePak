@@ -72,6 +72,6 @@ class AdminOcaEpakController extends ModuleAdminController
             'paidFee' => $paidFee,
             'distributionCenter' => $distributionCenter,
         ) );
-        die($this->module->display(_PS_MODULE_DIR_.$this->module->name.DIRECTORY_SEPARATOR.$this->module->name.'.php', _PS_VERSION_ < '1.6' ? 'displayAdminOrder_ajax15.tpl' : 'displayAdminOrder_ajax.tpl'));
+        die($this->module->display(_PS_MODULE_DIR_.$this->module->name.DIRECTORY_SEPARATOR.$this->module->name.'.php', _PS_VERSION_ < '1.6' ? 'displayAdminOrder15_ajax.tpl' : 'displayAdminOrder_ajax.tpl'));
     }
 }

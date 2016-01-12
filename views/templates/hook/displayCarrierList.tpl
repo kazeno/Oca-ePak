@@ -81,6 +81,7 @@ var customerStateCode = '{$customerStateCode|escape:'quotes':'UTF-8'}';
 var ocaRelayUrl = '{$link->getModuleLink($ocaepak_name, 'relay', [], $force_ssl)|escape:'quotes':'UTF-8'}';
 var ocaRelayCarriers = JSON.parse({$relayed_carriers|@json_encode|escape:'quotes':'UTF-8'});
 var ocaSelectedRelay = {if $ocaepak_selected_relay}{$ocaepak_selected_relay|escape:'quotes':'UTF-8'}{else}null{/if};
+var ocaRelayAuto = {if $ocaepak_relay_auto}{$ocaepak_relay_auto|escape:'quotes':'UTF-8'}{else}null{/if};
 {literal}
 (function () {
     var map, home, currentMarkerIndex, previousRelay;
@@ -145,9 +146,11 @@ var ocaSelectedRelay = {if $ocaepak_selected_relay}{$ocaepak_selected_relay|esca
         $.ajax({
             type: "POST",
             url: ocaRelayUrl,
-            data: { distribution_center_id: id },
+            data: { distribution_center_id: id, auto: ocaRelayAuto },
             context: document.body
         });
+        if (ocaRelayAuto)
+            ocaRelayAuto = 0;
     }
 
     function initMarkers() {
@@ -190,7 +193,7 @@ var ocaSelectedRelay = {if $ocaepak_selected_relay}{$ocaepak_selected_relay|esca
                 google.maps.event.addListener(marker, 'mouseout', function () {
                     infowindow.close();
                 });
-                if (previousRelay)
+                if (previousRelay && !ocaRelayAuto)
                     assignBranch(previousRelay, true);
                 else
                     assignClosestBranch();
@@ -241,7 +244,6 @@ var ocaSelectedRelay = {if $ocaepak_selected_relay}{$ocaepak_selected_relay|esca
 
     function assignClosestBranch() {
         function rad(x) {return x*Math.PI/180;}
-        var closestMarker;
         var closest = 0;
         if (home) {
             var R = 6371; // radius of earth in km
@@ -259,9 +261,6 @@ var ocaSelectedRelay = {if $ocaepak_selected_relay}{$ocaepak_selected_relay|esca
                 if (d < distances[closest])
                     closest = i;
             }
-            closestMarker = ocaRelays[closest];
-        } else {
-            closestMarker = ocaRelays[0];
         }
         assignBranch(closest);
     }
