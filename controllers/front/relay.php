@@ -31,7 +31,6 @@ class OcaepakRelayModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
 
-        //$OcaEpak = new OcaEpak();
         $id_cart = $this->context->cookie->id_cart;
         $relay = OcaEpakRelay::getByCartId($id_cart);
         if (!$relay) {
@@ -39,6 +38,7 @@ class OcaepakRelayModuleFrontController extends ModuleFrontController
             $relay->id_cart = $id_cart;
         }
         $relay->distribution_center_id = (int)Tools::getValue('distribution_center_id');
+        $relay->auto = (int)Tools::getValue('auto');
         $relay->save();
 
         echo Tools::jsonEncode(array('status' => 'Success'));

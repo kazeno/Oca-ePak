@@ -24,6 +24,7 @@ class OcaEpakRelay extends ObjectModel
 {
     public $id_cart;
     public $distribution_center_id;
+    public $auto;
 
     /**
      * @see ObjectModel::$definition
@@ -35,6 +36,7 @@ class OcaEpakRelay extends ObjectModel
         'fields' => array(
             'id_cart' => array('type' => self::TYPE_INT, 'validate' => 'isunsignedInt', 'required' => TRUE),
             'distribution_center_id' =>	array('type' => self::TYPE_INT, 'validate' => 'isunsignedInt', 'required' => TRUE),
+            'auto' => array('type' => self::TYPE_INT, 'validate' => 'isBool', 'required' => false),
         )
     );
 

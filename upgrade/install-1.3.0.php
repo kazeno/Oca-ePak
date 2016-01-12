@@ -51,8 +51,13 @@ function upgrade_module_1_3_0($module) {
                 '{$DB_PREFIX}' => _DB_PREFIX_
             ))
         ) AND
+        Db::getInstance()->execute(
+            KznCarrier::interpolateSql('ALTER TABLE `{$DB_PREFIX}ocae_relays` ADD COLUMN `auto` INT NULL DEFAULT 0', array(
+                '{$DB_PREFIX}' => _DB_PREFIX_
+            ))
+        ) AND
         $tab->add() AND
-        $this->module->unregisterHook('updateCarrier')
+        $module->unregisterHook('updateCarrier')
     );
 }
 

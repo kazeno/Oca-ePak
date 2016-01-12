@@ -56,7 +56,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '1.3';
+        $this->version = '1.3.0';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
@@ -215,7 +215,7 @@ class OcaEpak extends CarrierModule
             //Check API Access is working correctly
             foreach ($ops as $op) {
                 try {
-                    $data = $this->executeWebservice('Tarifar_Envio_Corporativo', array(
+                    $this->executeWebservice('Tarifar_Envio_Corporativo', array(
                         'PesoTotal' => '1',
                         'VolumenTotal' => '0.05',
                         'ValorDeclarado' => '100',
@@ -695,6 +695,7 @@ class OcaEpak extends CarrierModule
                     'relayed_carriers' => Tools::jsonEncode($carrierIds),
                     'ocaepak_name' => $this->name,
                     'ocaepak_selected_relay' => $relay ? $relay->distribution_center_id : null,
+                    'ocaepak_relay_auto' => $relay ? $relay->auto : null,
                     'customerStateCode' => Tools::strlen($stateCode) === 1 ? $stateCode : '',
                     'psver' => _PS_VERSION_,
                     'force_ssl' => Configuration::get('PS_SSL_ENABLED') || Configuration::get('PS_SSL_ENABLED_EVERYWHERE')
@@ -752,10 +753,14 @@ class OcaEpak extends CarrierModule
                     $relay = new OcaEpakRelay();
                     $relay->id_cart = $cart->id;
                     $relay->distribution_center_id = (int)$branches[0]->idCentroImposicion;
+                    $relay->auto = 1;
                     $relay->save();
                     $postcode = (string)$branches[0]->CodigoPostal;
+                    $cache_id = 'OcaEpak::relayPostCode_'.(int)$relay->distribution_center_id;
+                    if (!Cache::isStored($cache_id))
+                        Cache::store($cache_id, $postcode);
                 } else {
-                    $cache_id = 'OcaEpak::cartPostCode_'.(int)$cart->id;
+                    $cache_id = 'OcaEpak::relayPostCode_'.(int)$relay->distribution_center_id;
                     if (Cache::isStored($cache_id)) {
                         $postcode = KznCarrier::cleanPostcode(Cache::retrieve($cache_id));
                     } else {
@@ -849,20 +854,6 @@ class OcaEpak extends CarrierModule
         );
 
         return str_replace(array_keys($replacements), array_values($replacements), $error);
-    }
-
-    protected function _cleanOcaAttribute($text, $maxLength, $fromEnd = false)
-    {
-        $clean = trim(htmlspecialchars(iconv('utf-8','ascii//TRANSLIT', $text)));
-        if (strpos($clean, '?') !== false) {
-            @setlocale(LC_TIME, 'es_ES');
-            $clean = trim(htmlspecialchars(iconv('utf-8','ascii//TRANSLIT', $text)));
-        }
-
-        if ($fromEnd)
-            return Tools::strlen($clean) > $maxLength ? Tools::substr($clean, -$maxLength) : $clean;
-        else
-            return Tools::strlen($clean) > $maxLength ? Tools::substr($clean, 0, $maxLength) : $clean;
     }
 
     protected function _getSoapClient($url)
