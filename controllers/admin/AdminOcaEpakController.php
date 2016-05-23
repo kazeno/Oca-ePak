@@ -42,7 +42,7 @@ class AdminOcaEpakController extends ModuleAdminController
         try {
             $data = $this->module->executeWebservice('Tarifar_Envio_Corporativo', array(
                 'PesoTotal' => $cartData['weight'],
-                'VolumenTotal' => $cartData['volume'],
+                'VolumenTotal' => ($cartData['volume'] > 0.0001) ? $cartData['volume'] : 0.0001,
                 'ValorDeclarado' => $cartData['cost'],
                 'CodigoPostalOrigen' => Configuration::get(OcaEpak::CONFIG_PREFIX.'POSTCODE'),
                 'CodigoPostalDestino' => KznCarrier::cleanPostcode($address->postcode),

@@ -17,12 +17,12 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.3
+ *  @file-version 1.4
  */
 
 class OcaEpakGeocoding extends ObjectModel
 {
-    const GEOCODER_URL = 'http://maps.googleapis.com/maps/api/geocode/json?region=ar&address=';
+    const GEOCODER_URL = 'http://maps.googleapis.com/maps/api/geocode/json?region=ar&language=es&address=';
     const SERVICE_ADMISSION = 1;
     const SERVICE_DELIVERY = 2;
 

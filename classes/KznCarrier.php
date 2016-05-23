@@ -17,7 +17,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.0.0.1
+ *  @file-version 1.0.1
  */
 
 class KznCarrier
@@ -68,18 +68,19 @@ class KznCarrier
         switch (Configuration::get('PS_DIMENSION_UNIT')) {
             case 'm':
                 $divider = 1;
-                $padding = $defPadding/100;
+                //$padding = $defPadding/100;
                 break;
             case 'in':
                 $divider = 39.37*39.37*39.37;  //39.37 in to 1 m
-                $padding = $defPadding*0.3937;
+                //$padding = $defPadding*0.3937;
                 break;
             case 'cm':
             default:
                 $divider = 1000000;
-                $padding = $defPadding;
+                //$padding = $defPadding;
                 break;
         }
+        $padding = $defPadding/100;
 
         switch (Configuration::get('PS_WEIGHT_UNIT')) {
             case 'lb':
@@ -108,13 +109,14 @@ class KznCarrier
             $weight += ($product['weight'] > 0 ? ($product['weight'] * $multiplier) : $defWeight) * $product['cart_quantity'];
             $volume += (
                 $product['width']*$product['height']*$product['depth'] > 0 ?
-                    (($product['width']+2*$padding)*($product['height']+2*$padding)*($product['depth']+2*$padding))/$divider :
+                    (($product['width'])*($product['height'])*($product['depth']))/$divider :
                     $defVolume
                 )*$product['cart_quantity'];
             $cost += $productObj->getPrice();
         }
+        $paddedVolume = round(pow(pow($volume, 1/3)+(2*$padding), 3), 6);
 
-        return array('weight' => $weight, 'volume' => $volume, 'cost' => $cost);
+        return array('weight' => $weight, 'volume' => $paddedVolume, 'cost' => $cost);
     }
 
     public static function interpolateSql($sql, $replacements)
