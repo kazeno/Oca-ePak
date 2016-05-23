@@ -19,7 +19,7 @@
  *   own business needs, as long as no distribution of either the
  *   original module or the user-modified version is made.
  *
- *  @file-version 1.3
+ *  @file-version 1.3.1
  */
 
 if (!defined( '_PS_VERSION_'))
@@ -56,7 +56,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '1.3.0';
+        $this->version = '1.3.1';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
@@ -136,6 +136,7 @@ class OcaEpak extends CarrierModule
             $tab->add() AND
             $this->registerHook('displayCarrierList') AND
             $this->registerHook('displayAdminOrder') AND
+            //$this->registerHook('actionAdminPerformanceControllerBefore') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'ACCOUNT', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'EMAIL', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'PASSWORD', '') AND
@@ -263,7 +264,7 @@ class OcaEpak extends CarrierModule
                             'label' => $this->l('OCA Account Number'),
                             'name' => 'account',
                             'class' => 'fixed-width-xxl',
-                            'desc' => $this->l('You can find your account number by logging into your OCA account and going to the following URL').': <br /><a href="http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>',
+                            'desc' => $this->l('You can find your account number by logging into your OCA account and going to the following URL').': <br /><a href="http://www5.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www5.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>',
                             'required' => true
                         ),
                         array(
@@ -401,7 +402,7 @@ class OcaEpak extends CarrierModule
                     'legend' => array(
                         'title' => $this->l('New OCA Operative')
                     ),
-                    'description' => $this->l('You can find your OCA operatives by logging into your OCA account and going to the following URL').': <br /><a href="http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www4.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>',
+                    'description' => $this->l('You can find your OCA operatives by logging into your OCA account and going to the following URL').': <br /><a href="http://www5.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp" target="_blank" style="text-decoration: underline; font-weight: 700;" />http://www5.oca.com.ar/ocaepak/Seguro/ListadoOperativas.asp</a>',
                     'input' => array(
                         array(
                             'type' => 'text',
@@ -710,6 +711,13 @@ class OcaEpak extends CarrierModule
         return NULL;
     }
 
+    public function hookActionAdminPerformanceControllerBefore()
+    {
+        if ((bool)Tools::getValue('empty_smarty_cache')) {
+            OcaEpakQuote::clear();
+        }
+    }
+
 
     public function getOrderShippingCost($cart, $shipping_cost)
     {
@@ -775,7 +783,7 @@ class OcaEpak extends CarrierModule
                 return (float)Tools::ps_round($shipping_cost+KznCarrier::convertCurrencyFromIso(KznCarrier::applyFee($cot, $op->addfee), 'ARS', $cart->id_currency), 2);
             $data = $this->executeWebservice('Tarifar_Envio_Corporativo', array(
                 'PesoTotal' => $cartData['weight'],
-                'VolumenTotal' => $cartData['volume'],
+                'VolumenTotal' => ($cartData['volume'] > 0.0001) ? $cartData['volume'] : 0.0001,
                 'ValorDeclarado' => $cartData['cost'],
                 'CodigoPostalOrigen' => Configuration::get(self::CONFIG_PREFIX.'POSTCODE'),
                 'CodigoPostalDestino' => KznCarrier::cleanPostcode($address->postcode),
