@@ -19,7 +19,7 @@
  *   own business needs, as long as no distribution of either the
  *   original module or the user-modified version is made.
  *
- *  @file-version 1.3.1
+ *  @file-version 1.4
  */
 
 if (!defined( '_PS_VERSION_'))
@@ -28,7 +28,7 @@ if (!defined( '_PS_VERSION_'))
 class OcaEpak extends CarrierModule
 {
     const MODULE_NAME = 'ocaepak';                  //DON'T CHANGE!!
-    const CONFIG_PREFIX = 'OCAEPAK_';                //prefix for all internal config constants
+    const CONFIG_PREFIX = 'OCAEPAK_';               //prefix for all internal config constants
     const CARRIER_NAME = 'Oca ePak';                //Carrier name string
     const CARRIER_DELAY = '2 a 8 días hábiles';     //Carrier default delay string
     const OPERATIVES_TABLE = 'ocae_operatives';     //DB table for Operatives
@@ -37,9 +37,7 @@ class OcaEpak extends CarrierModule
     const ORDERS_ID = 'id_ocae_orders';             //DB table id for orders
     const QUOTES_TABLE = 'ocae_quotes';             //DB table for quotes
     const RELAYS_TABLE = 'ocae_relays';             //DB table for relays
-    const RELAYS_ID = 'id_ocae_relays';              //DB table id for quotes
-    const GEOCODES_TABLE = 'ocae_geocodes';             //DB table for relays
-    const GEOCODES_ID = 'id_ocae_geocodes';             //DB table id for relays
+    const RELAYS_ID = 'id_ocae_relays';             //DB table id for relays
     const TRACKING_URL = 'https://www1.oca.com.ar/OEPTrackingWeb/trackingenvio.asp?numero1=@';
     const OCA_URL = 'http://webservice.oca.com.ar/epak_tracking/Oep_TrackEPak.asmx?wsdl';
     const OCA_PREVIOUS_URL = 'http://webservice.oca.com.ar/oep_tracking/Oep_Track.asmx?WSDL';
@@ -51,12 +49,13 @@ class OcaEpak extends CarrierModule
     public $id_carrier;
     private $soapClients = array();
     protected  $guiHeader = '';
+    private $boxes = array();
 
     public function __construct()
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '1.3.1';
+        $this->version = '1.4.0';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
@@ -65,9 +64,10 @@ class OcaEpak extends CarrierModule
         if (!class_exists('KznCarrier'))
             include_once _PS_MODULE_DIR_."{$this->name}/classes/KznCarrier.php";
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOperative.php";
+        include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOrder.php";
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakQuote.php";
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakRelay.php";
-        include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakGeocoding.php";
+        //include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakGeocoding.php";
 
         parent::__construct();
         $this->displayName = 'OCA e-Pak';
@@ -90,13 +90,21 @@ class OcaEpak extends CarrierModule
 
         $db = Db::getInstance();
         $tab = new Tab();
+        $tab2 = new Tab();
         $tab->active = 1;
+        $tab2->active = 1;
         $tab->class_name = 'AdminOcaEpak';
+        $tab2->class_name = 'AdminOcaOrder';
         $tab->name = array();
-        foreach (Language::getLanguages(true) as $lang)
+        $tab2->name = array();
+        foreach (Language::getLanguages(true) as $lang) {
             $tab->name[$lang['id_lang']] = 'Oca ePak';
+            $tab2->name[$lang['id_lang']] = 'Oca ePak Orders';
+        }
         $tab->id_parent = -1;
+        $tab2->id_parent = -1;
         $tab->module = $this->name;
+        $tab2->module = $this->name;
         return (
             $db->Execute(
                 KznCarrier::interpolateSqlFile($this->name, 'create-operatives-table', array(
@@ -118,25 +126,19 @@ class OcaEpak extends CarrierModule
                     '{$TABLE_ID}' => self::RELAYS_ID
                 ))
             ) AND
-            /*$db->Execute(
-                KznCarrier::interpolateSqlFile($this->name, 'create-geocodes-table', array(
+            $db->Execute(
+                KznCarrier::interpolateSqlFile($this->name, 'create-orders-table', array(
                     '{$DB_PREFIX}' => _DB_PREFIX_,
-                    '{$TABLE_NAME}' => self::GEOCODES_TABLE,
-                    '{$TABLE_ID}' => self::GEOCODES_ID
+                    '{$TABLE_NAME}' => self::ORDERS_TABLE,
+                    '{$TABLE_ID}' => self::ORDERS_ID
                 ))
             ) AND
-            $db->Execute(
-                KznCarrier::interpolateSqlFile($this->name, 'populate-geocodes-table', array(
-                    '{$DB_PREFIX}' => _DB_PREFIX_,
-                    '{$TABLE_NAME}' => self::GEOCODES_TABLE,
-                    '{$TABLE_ID}' => self::GEOCODES_ID
-                ))
-            ) AND*/
             parent::install() AND
             $tab->add() AND
+            $tab2->add() AND
             $this->registerHook('displayCarrierList') AND
             $this->registerHook('displayAdminOrder') AND
-            //$this->registerHook('actionAdminPerformanceControllerBefore') AND
+            $this->registerHook('actionAdminPerformanceControllerBefore') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'ACCOUNT', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'EMAIL', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'PASSWORD', '') AND
@@ -144,7 +146,21 @@ class OcaEpak extends CarrierModule
             Configuration::updateValue(self::CONFIG_PREFIX.'DEFWEIGHT', '0.25') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'DEFVOLUME', '0.125') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'FAILCOST', '63.37') AND
-            Configuration::updateValue(self::CONFIG_PREFIX.'POSTCODE', '')
+            Configuration::updateValue(self::CONFIG_PREFIX.'POSTCODE', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'STREET', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'NUMBER', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'FLOOR', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'APARTMENT', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'LOCALITY', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'PROVINCE', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'CONTACT', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'REQUESTOR', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'OBSERVATIONS', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'BOXES', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'TIMESLOT', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'ADMISSION_BRANCH', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'ADMISSIONS_ENABLED', false) AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'PICKUPS_ENABLED', false)
         );
     }
 
@@ -234,6 +250,22 @@ class OcaEpak extends CarrierModule
                 }
             }
         }
+        $impositionCenters = $this->executeWebservice('GetCentrosImposicionConServicios');
+        $icFields = array();
+        foreach ($impositionCenters as $k => $obj) {
+            $admits = false;
+            foreach ($obj->Servicios->Servicio as $serv) {
+                if ((string)$serv->IdTipoServicio === '1')
+                    $admits = true;
+            }
+            if (!$admits)
+                continue;
+            $icFields[(string)$obj->CodigoPostal.'.'.$k] = array(
+                'text' => (string)$obj->Sucursal.': '.(string)$obj->Calle.' '.(string)$obj->Numero.', '.(string)$obj->Localidad.', '.(string)$obj->Provincia.' | CP: '.(string)$obj->CodigoPostal,
+                'value' => (string)$obj->IdCentroImposicion
+            );
+        }
+        ksort($icFields);
 
         $this->context->smarty->assign(array('psver' => _PS_VERSION_));
         $this->guiAddToHeader($this->context->smarty->fetch($this->local_path.'views/templates/admin/configure.tpl'));
@@ -297,13 +329,13 @@ class OcaEpak extends CarrierModule
             ),
         );
         $fields_form2 = array(
-            'form' => array(
+            'shipments' => array(
                 'form' => array(
                     'id_form' => 'form2',
                     'legend' => array(
                         'title' => '3. '.$this->l('Shipments')
                     ),
-                    'description' => $this->l('The address from where shipments will be made'),
+                    //'description' => $this->l('The address from where shipments will be made'),
                     'input' => array(
                         array(
                             'type' => 'text',
@@ -315,10 +347,189 @@ class OcaEpak extends CarrierModule
                             'required' => true
 
                         ),
+                        array(
+                            'type' => _PS_VERSION_ < 1.6 ? 'radio' : 'switch',
+                            'label' => $this->l('Enable OCA admission orders'),
+                            'name' => 'oca_admissions',
+                            'class' => 't',
+                            'is_bool' => TRUE,
+                            'values' => array(
+                                array(
+                                    'id' => 'admissions_on',
+                                    'value' => '1',
+                                    'label' => 'on',
+                                ),
+                                array(
+                                    'id' => 'admissions_off',
+                                    'value' => '0',
+                                    'label' => 'off',
+                                ),
+                            ),
+                            'desc' => $this->l('This will allow you to generate OCA order admissions and stickers for operatives sent from an OCA branch (SaP, SaS)')
+                        ),
+                        array(
+                            'type' => _PS_VERSION_ < 1.6 ? 'radio' : 'switch',
+                            'label' => $this->l('Enable OCA pickup orders'),
+                            'name' => 'oca_pickups',
+                            'class' => 't',
+                            'is_bool' => TRUE,
+                            'values' => array(
+                                array(
+                                    'id' => 'pickups_on',
+                                    'value' => '1',
+                                    'label' => 'on',
+                                ),
+                                array(
+                                    'id' => 'pickups_off',
+                                    'value' => '0',
+                                    'label' => 'off',
+                                ),
+                            ),
+                            'desc' => $this->l('This will allow you to generate OCA order collections and stickers for operatives collected at your premises (PaP, PaS)')
+                        ),
                     ),
                 )
             ),
-            array(
+            'admissions' => array(
+                'form' => array(
+                    'id_form' => 'admission_orders',
+                    'legend' => array(
+                        'title' => '3.1. '.$this->l('Branch Admission Settings')
+                    ),
+                    'description' => $this->l('SaP and SaS operative shipments will have to be made from this OCA branch'),
+                    'input' => array(
+                        array(
+                            'type' => 'select',
+                            'label' => $this->l('Admissions OCA Branch'),
+                            'name' => 'branch',
+                            'class' =>  'fixed-width-xxl',
+                            'options' => array(
+                                'query' => $icFields,
+                                'id' => 'value',
+                                'name' => 'text'
+                            ),
+                            'desc' => $this->l('The OCA branch where you will send your packages from')
+                        ),
+                    ),
+                )
+            ),
+            'pickups' => array(
+                'form' => array(
+                    'id_form' => 'pickup_orders',
+                    'legend' => array(
+                        'title' => '3.2. '.$this->l('Pickup Settings')
+                    ),
+                    'description' => $this->l('PaP and PaS operative shipments will be picked up by OCA at this address'),
+                    'input' => array(
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Street'),
+                            'name' => 'street',
+                            'class' => 'fixed-width-xxl',
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 5,
+                            'label' => $this->l('Number'),
+                            'name' => 'number',
+                            'class' => 'fixed-width-md',
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 2,
+                            'label' => $this->l('Floor'),
+                            'name' => 'floor',
+                            'class' => 'fixed-width-md',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 4,
+                            'label' => $this->l('Apartment'),
+                            'name' => 'apartment',
+                            'class' => 'fixed-width-md',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Locality'),
+                            'name' => 'locality',
+                            'class' => 'fixed-width-xl',
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Province'),
+                            'name' => 'province',
+                            'class' => 'fixed-width-xl',
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Contact'),
+                            'name' => 'contact',
+                            'class' => 'fixed-width-xl',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 30,
+                            'label' => $this->l('Requestor'),
+                            'name' => 'requestor',
+                            'class' => 'fixed-width-xl',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 100,
+                            'label' => $this->l('Observations'),
+                            'name' => 'observations',
+                            'class' => 'fixed-width-xxl',
+                        ),
+                        array(
+                            'type' => 'select',
+                            'label' => $this->l('Time slot'),
+                            'name' => 'timeslot',
+                            'class' =>  'pickup_orders',
+                            'options' => array(
+                                'query' => array(
+                                    array('value' =>'1', 'text' =>'8:00 - 17:00'),
+                                    array('value' =>'2', 'text' =>'8:00 - 12:00'),
+                                    array('value' =>'3', 'text' =>'14:00 - 17:00'),
+                                ),
+                                'id' => 'value',
+                                'name' => 'text'
+                            ),
+                            'required' => true,
+                            'desc' => $this->l('OCA collections will be made during this time slot')
+                        ),
+                    ),
+                )
+            ),
+            'packaging' => array(
+                'form' => array(
+                    'form' => array(
+                        'id_form' => 'form2',
+                    ),
+                    'legend' => array(
+                        'title' => '3.3. '.$this->l('Packaging')
+                    ),
+                    'description' => $this->l('These are the types of boxes you commonly use for shipping'),
+                    'input' => array(
+                        array(
+                            'type' => 'hidden',
+                            'name' => 'boxes'
+                        ),
+                        array(
+                            'type' => 'free',
+                            'name' => 'boxes-box',
+                        ),
+                    )
+                )
+            ),
+            'failsafes' => array(
                 'form' => array(
                     'form' => array(
                         'id_form' => 'form2',
@@ -618,6 +829,22 @@ class OcaEpak extends CarrierModule
             'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'DEFVOLUME')),
             'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'POSTCODE')),
             'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'FAILCOST')),
+            'oca_admissions' => Tools::getValue('oca_admissions', Configuration::get(self::CONFIG_PREFIX.'ADMISSIONS_ENABLED')),
+            'oca_pickups' => Tools::getValue('oca_pickups', Configuration::get(self::CONFIG_PREFIX.'PICKUPS_ENABLED')),
+            'street' => Tools::getValue('street', Configuration::get(self::CONFIG_PREFIX.'STREET')),
+            'number' => Tools::getValue('number', Configuration::get(self::CONFIG_PREFIX.'NUMBER')),
+            'floor' => Tools::getValue('floor', Configuration::get(self::CONFIG_PREFIX.'FLOOR')),
+            'apartment' => Tools::getValue('apartment', Configuration::get(self::CONFIG_PREFIX.'APARTMENT')),
+            'locality' => Tools::getValue('locality', Configuration::get(self::CONFIG_PREFIX.'LOCALITY')),
+            'province' => Tools::getValue('province', Configuration::get(self::CONFIG_PREFIX.'PROVINCE')),
+            'contact' => Tools::getValue('contact', Configuration::get(self::CONFIG_PREFIX.'CONTACT')),
+            'requestor' => Tools::getValue('requestor', Configuration::get(self::CONFIG_PREFIX.'REQUESTOR')),
+            'observations' => Tools::getValue('observations', Configuration::get(self::CONFIG_PREFIX.'OBSERVATIONS')),
+            'timeslot' => Tools::getValue('timeslot', Configuration::get(self::CONFIG_PREFIX.'TIMESLOT') ? Configuration::get(self::CONFIG_PREFIX.'TIMESLOT') : 1),
+            'costcenter' => Tools::getValue('costcenter', Configuration::get(self::CONFIG_PREFIX.'COSTCENTER') ? Configuration::get(self::CONFIG_PREFIX.'COSTCENTER') : 1),
+            'branch' => Tools::getValue('branch', Configuration::get(self::CONFIG_PREFIX.'ADMISSION_BRANCH') ? Configuration::get(self::CONFIG_PREFIX.'ADMISSION_BRANCH') : 39),
+            'boxes' => Tools::getValue('boxes', Configuration::get(self::CONFIG_PREFIX.'BOXES') ? Configuration::get(self::CONFIG_PREFIX.'BOXES') : '[]'),
+            'boxes-box' => $this->context->smarty->fetch($this->local_path.'views/templates/admin/configure_boxes.tpl'),
         );
     }
 
@@ -642,6 +869,33 @@ class OcaEpak extends CarrierModule
             $error .= $this->displayError($this->l('Invalid postcode'));
         if (!OcaEpakOperative::isCurrentlyUsed(OcaEpak::OPERATIVES_TABLE))
             $error .= $this->displayError($this->l('You need to add at least one operative'));
+        if (Tools::getValue('oca_admissions')) {
+            if (!Validate::isUnsignedInt(Tools::getValue('branch')))
+                $error .= $this->displayError($this->l('Invalid OCA admissions branch'));
+        }
+        if (Tools::getValue('oca_pickups')) {
+            if (!Tools::strlen(trim(Tools::getValue('street'))) || !Validate::isAddress(Tools::getValue('street')))
+                $error .= $this->displayError($this->l('Invalid pickup street'));
+            if (!Tools::strlen(trim(Tools::getValue('number'))) || !Validate::isAddress(Tools::getValue('number')))
+                $error .= $this->displayError($this->l('Invalid pickup number'));
+            if (!Tools::strlen(trim(Tools::getValue('locality'))) || !Validate::isAddress(Tools::getValue('locality')))
+                $error .= $this->displayError($this->l('Invalid pickup locality'));
+            if (!Tools::strlen(trim(Tools::getValue('province'))) || !Validate::isAddress(Tools::getValue('province')))
+                $error .= $this->displayError($this->l('Invalid pickup province'));
+            if (!Validate::isUnsignedInt(Tools::getValue('timeslot')))
+                $error .= $this->displayError($this->l('Invalid pickup timeslot'));
+        }
+        $boxes = Tools::jsonDecode(Tools::getValue('boxes'), true);
+        foreach ($boxes as $box) {
+            if (($box['l']+$box['d']+$box['h']+$box['xw']) > 0) {
+                if (!is_numeric($box['l']) || !is_numeric($box['d']) || !is_numeric($box['h']) || !is_numeric($box['xw']))
+                    $error .= $this->displayError($this->l('Some of the boxes have a non-numeric dimension'));
+                elseif ($box['l'] == 0 || $box['d'] == 0 || $box['h'] == 0 || $box['xw'] == 0)
+                    $error .= $this->displayError($this->l('Some of the boxes have a dimension of 0'));
+                else
+                    $this->boxes[] = $box;
+            }
+        }
         if (Tools::strlen($error)) {
             $this->guiAddToHeader($error);
             return false;
@@ -649,10 +903,192 @@ class OcaEpak extends CarrierModule
 
         $form_values = $this->getConfigFormValues();
         foreach (array_keys($form_values) as $key) {
+            if (in_array($key, array('oca_admissions', 'oca_pickups', 'branch', 'boxes', 'boxes-box')))
+                continue;
             Configuration::updateValue(self::CONFIG_PREFIX.Tools::strtoupper($key), is_string(Tools::getValue($key)) ? trim(Tools::getValue($key)) : Tools::getValue($key));
         }
+        if (Tools::getValue('oca_admissions')) {
+            Configuration::updateValue(self::CONFIG_PREFIX.'ADMISSION_BRANCH', Tools::getValue('branch'));
+        }
+        Configuration::updateValue(self::CONFIG_PREFIX . 'ADMISSIONS_ENABLED', Tools::getValue('oca_admissions'));
+        Configuration::updateValue(self::CONFIG_PREFIX . 'PICKUPS_ENABLED', Tools::getValue('oca_pickups'));
+        Configuration::updateValue(self::CONFIG_PREFIX.'BOXES', Tools::jsonEncode($this->boxes));
         $this->guiAddToHeader($this->displayConfirmation($this->l('Configuration saved')));
         return true;
+    }
+
+    public function renderOrderGeneratorForm($address, $parsedAddress, $type)
+    {
+        $this->context->controller->addJqueryUI('ui.datepicker');
+        $this->context->smarty->assign(array(
+            'oca_boxes' => Tools::jsonDecode(Configuration::get(self::CONFIG_PREFIX.'BOXES'), true),
+            'oca_order_address' => $address,
+            'oca_geocoded' => $parsedAddress['geocoded']
+        ));
+        $boxBox = $this->context->smarty->fetch($this->local_path.'views/templates/admin/oca_order_boxes.tpl');
+        $fullAddress = $this->context->smarty->fetch($this->local_path.'views/templates/admin/oca_order_address.tpl');
+
+        $fields_form = array(
+            array(
+                'form' => array(
+                    'id_form' => 'oca-form',
+                    'legend' => array(
+                        'title' => $this->l('OCA Address Parser')
+                    ),
+                    'description' => $parsedAddress['discrepancy'] ? $this->l('Please check the following customer address and correct any field that was incorrectly extracted from it') : $this->l('Customer address analyzed successfully'),
+                    'input' => array(
+                        array(
+                            'type' => 'free',
+                            'name' => 'oca-full-address',
+                        ),
+                        array(
+                            'type' => 'text',
+                            'name' => 'oca-street',
+                            'label' => $this->l('Street'),
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'text',
+                            'name' => 'oca-number',
+                            'label' => $this->l('Number'),
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'text',
+                            'name' => 'oca-floor',
+                            'label' => $this->l('Floor'),
+                        ),
+                        array(
+                            'type' => 'text',
+                            'name' => 'oca-apartment',
+                            'label' => $this->l('Apartment'),
+                        ),
+                        array(
+                            'type' => 'text',
+                            'name' => 'oca-city',
+                            'label' => $this->l('Locality'),
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'text',
+                            'name' => 'oca-state',
+                            'label' => $this->l('State'),
+                            'required' => true
+                        ),
+                        array(
+                            'type' => 'textarea',
+                            'label' => $this->l('Observations'),
+                            'name' => 'oca-other',
+                            'cols' => '50',
+                            'rows' => '2',
+                        ),
+                    ),
+                ),
+            ),
+            array(
+                'form' => array(
+                    'legend' => array(
+                        'title' => $this->l('OCA Order Generator')
+                    ),
+                    'input' => array(
+                        array(
+                            'type' => 'date',
+                            'label' => in_array($type, array('PaP', 'PaS')) ? $this->l('Date for pickup') : $this->l('Date for admission'),
+                            'name' => 'oca-date',
+                            'class' => 'col-xs-6 datepicker',
+                            'size' => 6,
+                            'required' => true,
+                            'desc' => in_array($type, array('PaP', 'PaS')) ? $this->l('When should OCA come for the packages') : $this->l('When you will take the packages to OCA'),
+                        ),
+                        array(
+                            'type' => 'free',
+                            'name' => 'boxes',
+                            'label' => $this->l('Packaging'),
+                        ),
+                    ),
+                    'submit' => array(
+                        'title' => $this->l('Generate OCA Admission Order'),
+                        'name' => 'oca-order-submit'
+                    ),
+                )
+            )
+        );
+        $fields_value = array(
+            'oca-street' => Tools::getValue('oca-street', $parsedAddress['street']),
+            'oca-number' => Tools::getValue('oca-number', $parsedAddress['number']),
+            'oca-floor' => Tools::getValue('oca-floor', $parsedAddress['floor']),
+            'oca-apartment' => Tools::getValue('oca-apartment', $parsedAddress['apartment']),
+            'oca-city' => Tools::getValue('oca-city', $parsedAddress['city']),
+            'oca-state' => Tools::getValue('oca-state', $parsedAddress['state']),
+            'oca-other' => Tools::getValue('oca-other', $parsedAddress['other']),
+            'oca-date' => Tools::getValue('oca-date', date('Y-m-d')),
+            'boxes' => $boxBox,
+            'oca-full-address' => $fullAddress,
+
+        );
+        $helper = new HelperForm();
+        $helper->module = $this;
+        $helper->title = $this->displayName;
+        $helper->name_controller = $this->name;
+        $helper->identifier = $this->identifier;
+        $helper->token = Tools::getAdminTokenLite('AdminOrders');
+        $helper->currentIndex = 'index.php?controller=AdminOrders&id_order='.Tools::getValue('id_order').'&vieworder';
+        $lang = new Language((int)Configuration::get('PS_LANG_DEFAULT'));
+        $helper->default_form_language = $lang->id;
+        $helper->show_toolbar = false;
+        $helper->submit_action = '';
+        $helper->fields_value = $fields_value;
+
+        return $helper->generateForm($fields_form);
+    }
+
+    protected function getValidateOcaForm($cartData)
+    {
+        if (Tools::getValue('oca-date', false) && Tools::getValue('oca-street', false) && Tools::getValue('oca-number', false) && Tools::getValue('oca-city', false) && Tools::getValue('oca-state', false)) {
+            $form = array(
+                'street' => Tools::getValue('oca-street'),
+                'number' => Tools::getValue('oca-number'),
+                'floor' => Tools::getValue('oca-floor', ''),
+                'apartment' => Tools::getValue('oca-apartment', ''),
+                'locality' => Tools::getValue('oca-city'),
+                'province' => Tools::getValue('oca-state'),
+                'observations' => Tools::getValue('oca-other'),
+                'date' => str_replace('-', '', Tools::getValue('oca-date')),
+                'boxes' => array()
+            );
+            $boxes = Tools::jsonDecode(Configuration::get(self::CONFIG_PREFIX.'BOXES'), true);
+            $boxVolume = 0;
+            foreach ($boxes as $ind => $box) {
+                if (!is_numeric(Tools::getValue('oca-box-q-'.$ind, 0))) {
+                    $this->guiAddToHeader($this->displayError($this->l('One of the boxes has a non-numeric quantity')));
+                    return false;
+                }
+                if (Tools::getValue('oca-box-q-'.$ind, 0) <= 0)
+                    continue;
+                $form['boxes'][] = array(
+                    'l' => number_format((float)$box['l'], 0),
+                    'd' => number_format((float)$box['d'], 0),
+                    'h' => number_format((float)$box['h'], 0),
+                    'q' => Tools::getValue('oca-box-q-'.$ind),
+                );
+                $boxVolume = $boxVolume+($box['l']*$box['d']*$box['h'])*Tools::getValue('oca-box-q-'.$ind);
+            }
+            if (count($form['boxes']) == 0) {
+                $this->guiAddToHeader($this->displayError($this->l('You need to add at least one box')));
+                return false;
+            } else {
+                foreach ($form['boxes'] as &$box) {      //split cost and weight proportionally
+                    $vol = ($box['l']*$box['d']*$box['h']);
+                    $volumePercentage = $vol/$boxVolume;
+                    $box['v'] = number_format((float)$volumePercentage*$cartData['cost'], 2);
+                    $box['w'] = number_format((float)$volumePercentage*$cartData['weight'], 2);
+                }
+            }
+            return $form;
+        } else {
+            $this->guiAddToHeader($this->displayError($this->l('There is missing data in the OCA order generator form')));
+            return false;
+        }
     }
 
     public function hookDisplayAdminOrder($params)
@@ -661,15 +1097,145 @@ class OcaEpak extends CarrierModule
         $op = OcaEpakOperative::getByFieldId('carrier_reference', $carrier->id_reference);
         if (!$op)
             return NULL;
+        $address = new Address($params['cart']->id_address_delivery);
+        $carrier = new Carrier($params['cart']->id_carrier);
         $order = new Order($params['id_order']);
+        $customer = new Customer($order->id_customer);
+        if (in_array($op->type, array('PaS', 'SaS'))) {
+            $relayId = OcaEpakRelay::getByCartId($params['cart']->id)->distribution_center_id;
+        } else
+            $relayId = null;
+
+        if (Tools::isSubmit('oca-order-cancel') && ($ocaOrder = OcaEpakOrder::getByFieldId('id_order', $order->id))) {
+            try {
+                $cancel = $this->executeWebservice('AnularOrdenGenerada', array(
+                    'usr' => Configuration::get(OcaEpak::CONFIG_PREFIX.'EMAIL'),
+                    'psw' => Configuration::get(OcaEpak::CONFIG_PREFIX.'PASSWORD'),
+                    'IdOrdenRetiro' => $ocaOrder->reference,
+                ));
+                $result = (int)$cancel->IdResult;
+                $message = (string)$cancel->Mensaje;
+                switch ($result) {
+                    case 100:   //Order Deleted
+                        $this->guiAddToHeader($this->displayConfirmation($message));
+                        $ocaOrder->delete();
+                        break;
+                    case 130:   //Error
+                        $this->guiAddToHeader($this->displayError($message));
+                        break;
+                    default :
+                        $this->guiAddToHeader($this->displayError($result.': '.$message));
+                        break;
+                }
+            } catch (Exception $e) {
+                //$this->logError($e->getMessage());
+                $this->guiAddToHeader(Tools::displayError($this->l('OCA Order cancel error').': '.$e->getMessage()));
+            }
+        } elseif (Tools::isSubmit('oca-order-submit')) {
+            $cartData = KznCarrier::getCartPhysicalData($params['cart'], $carrier->id, Configuration::get(self::CONFIG_PREFIX.'DEFWEIGHT'), Configuration::get(self::CONFIG_PREFIX.'DEFVOLUME'), self::PADDING);
+            if ($preOrder = $this->getValidateOcaForm($cartData)) {
+                $xmlRetiro = OcaEpakOrder::generateOrderXml(array_merge($preOrder, array(
+                    'address' => $address,
+                    'operative' => $op,
+                    'order' => $order,
+                    'customer' => $customer,
+                    'cost_center_id' => in_array($op->type, array('PaP', 'PaS')) ? '0' : '1',
+                    'imposition_center_id' => $relayId,
+                    'origin_imposition_center_id' => in_array($op->type, array('SaP', 'SaS')) ? Configuration::get(OcaEpak::CONFIG_PREFIX.'ADMISSION_BRANCH') : false,
+                    'postcode' => KznCarrier::cleanPostcode($address->postcode)
+                )));
+                try {
+                    $data = $this->executeWebservice('IngresoORMultiplesRetiros', array(
+                        'usr' => Configuration::get(OcaEpak::CONFIG_PREFIX.'EMAIL'),
+                        'psw' => Configuration::get(OcaEpak::CONFIG_PREFIX.'PASSWORD'),
+                        'ConfirmarRetiro' => true,
+                        'xml_Datos' => $xmlRetiro
+                    ));
+                    if (!isset($data->Resumen))
+                        throw new Exception($this->l('Error generating OCA order'));
+                    if (isset($data->Errores))
+                        throw new Exception($this->l('Error generating OCA order').': '.(string)$data->Errores->Error->Descripcion);
+                    $ocaOrder = new OcaEpakOrder();
+                    $ocaOrder->id_order = $order->id;
+                    $ocaOrder->reference = (int)$data->DetalleIngresos->OrdenRetiro;
+                    $ocaOrder->tracking = (string)$data->DetalleIngresos->NumeroEnvio;
+                    $ocaOrder->operation_code = (int)$data->Resumen->CodigoOperacion;
+                    $ocaOrder->save();
+                    if (!$order->shipping_number && $ocaOrder->tracking) {
+                        $id_order_carrier = Db::getInstance()->getValue('
+						SELECT `id_order_carrier`
+						FROM `'._DB_PREFIX_.'order_carrier`
+						WHERE `id_order` = '.(int)$order->id);
+                        if ($id_order_carrier) {
+                            $_GET['tracking_number'] = $ocaOrder->tracking;
+                            $_GET['submitShippingNumber'] = 1;
+                            $_GET['id_order_carrier'] = $id_order_carrier;
+                            $this->context->controller->postProcess();
+                        }
+                    }
+                    unset($ocaOrder);
+                } catch (Exception $e) {
+                    //$this->logError($e->getMessage());
+                    //$this->logError($data);
+                    $this->guiAddToHeader($this->displayError($e->getMessage()));
+                }
+            }/* else
+                $this->guiAddToHeader(Tools::displayError($this->l('There is an error in the OCA order generator form')));*/
+        }
+
         $ajaxUrl = str_replace('index.php', 'ajax-tab.php', $this->context->link->getAdminLink('AdminOcaEpak', true));
         $this->context->smarty->assign(  array(
             'moduleName' => self::MODULE_NAME,
             'ocaImagePath'  => Tools::getShopDomainSsl(true, true).$this->_path.'views/img/',
             'ocaAjaxUrl' => $ajaxUrl,
-            'ocaOrderId' => $order->id
+            'ocaOrderId' => $order->id,
         ) );
-        return $this->display(__FILE__, _PS_VERSION_ < '1.6' ? 'displayAdminOrder15.tpl' : 'displayAdminOrder.tpl');
+        if ($ocaOrder = OcaEpakOrder::getByFieldId('id_order', $order->id)) {
+            $stickerUrl = str_replace('index.php', 'ajax-tab.php', $this->context->link->getAdminLink('AdminOcaOrder', true)).'&action=sticker&id_oca_order='.$ocaOrder->id;
+            try {
+                $admission = $this->executeWebservice('GetORResult', array(
+                    'idCabecera' => $ocaOrder->operation_code,
+                    'Usr' => Configuration::get(OcaEpak::CONFIG_PREFIX.'EMAIL'),
+                    'Psw' => Configuration::get(OcaEpak::CONFIG_PREFIX.'PASSWORD'),
+                ));
+                $status = (string)$admission->DetalleIngresos->Estado;
+                $accepts = (int)$admission->Resumen->CantidadIngresados;
+                $rejects = (int)$admission->Resumen->CantidadRechazados;
+            } catch (Exception $e) {
+                $this->logError($e->getMessage());
+                $status = 'Error adquiriendo estado';
+                $accepts = $rejects = 0;
+            }
+            $this->context->smarty->assign(  array(
+                'ocaStatus' => $status,
+                'ocaAccepts' => $accepts,
+                'ocaRejects' => $rejects,
+                'ocaOrder' => $ocaOrder,
+                'stickerUrl' => $stickerUrl,
+                'ocaGuiHeader' => $this->guiHeader,
+                'ocaOrderStatus' => 'submitted'
+            ) );
+            $template = Tools::str_replace_once('%HEADER_GOES_HERE%', $this->guiHeader, $this->display(__FILE__, _PS_VERSION_ < '1.6' ? 'displayAdminOrder15.tpl' : 'displayAdminOrder.tpl'));
+        } elseif (((Configuration::get(self::CONFIG_PREFIX.'ADMISSIONS_ENABLED') && (in_array($op->type, array('SaP', 'SaS')))) || (Configuration::get(self::CONFIG_PREFIX.'PICKUPS_ENABLED') && in_array($op->type, array('PaP', 'PaS')))) && !$order->shipping_number) {
+            $parsedAddress = OcaEpakOrder::parseOcaAddress($address);
+            //if ($parsedAddress['discrepancy'])
+            //    $this->logError(array('Problematic address' => $address->address1.' | '.$address->address2.' | '.$address->city.' | '.$address->other.' | '.$address->postcode.' | '));
+            $form = $this->renderOrderGeneratorForm($address, $parsedAddress, $op->type);
+            $this->context->smarty->assign(  array(
+                'ocaGuiHeader' => $this->guiHeader,
+                'ocaOrderStatus' => 'unsubmitted'
+            ) );
+            $pretemplate = Tools::str_replace_once('%HEADER_GOES_HERE%', $this->guiHeader, $this->display(__FILE__, _PS_VERSION_ < '1.6' ? 'displayAdminOrder15.tpl' : 'displayAdminOrder.tpl'));
+            $template = Tools::str_replace_once('%ORDER_GENERATOR_GOES_HERE%', $form, $pretemplate);
+        } else {
+            $this->context->smarty->assign(  array(
+                'ocaGuiHeader' => $this->guiHeader,
+                'ocaOrderStatus' => 'disabled'
+            ) );
+            $template = Tools::str_replace_once('%HEADER_GOES_HERE%', $this->guiHeader, $this->display(__FILE__, _PS_VERSION_ < '1.6' ? 'displayAdminOrder15.tpl' : 'displayAdminOrder.tpl'));
+        }
+
+        return $template;
     }
 
     /**
@@ -863,6 +1429,13 @@ class OcaEpak extends CarrierModule
 
         return str_replace(array_keys($replacements), array_values($replacements), $error);
     }
+    
+    protected function logError($data)
+    {
+        $logger = new FileLogger();
+        $logger->setFilename(_PS_MODULE_DIR_.$this->name.'/logs/'.date('Ymd').'.log');
+        $logger->logError(print_r($data, true));
+    }
 
     protected function _getSoapClient($url)
     {
@@ -895,7 +1468,9 @@ class OcaEpak extends CarrierModule
                 'GetELockerOCA',
                 'GetEnviosUltimoEstado',
                 'GetHtmlDeEtiquetasLockersPorOrdenOrNumeroEnvio',
+                'GetHtmlDeEtiquetasLockersPorOrdenOrNumeroEnvioParaEtiquetadora',
                 'GetHtmlDeEtiquetasPorOrdenOrNumeroEnvio',
+                'GetHtmlDeEtiquetasPorOrdenOrNumeroEnvioParaEtiquetadora',
                 'GetLocalidadesByProvincia',
                 'GetPdfDeEtiquetasPorOrdenOrNumeroEnvio',
                 //'GetProvincias',
@@ -946,12 +1521,9 @@ class OcaEpak extends CarrierModule
             $response = $this->_getSoapClient($url)->{$method}($params);
             $xml = new SimpleXMLElement($response->{$method.'Result'}->any);
         } catch (Exception $e) {
-            //**/Tools::dieObject(array($e, isset($response) ? $response : ''));
-            //$this->logError($e);
             throw new Exception($e->getMessage());
         }
         if (!count($xml->children())) {
-            //$this->logError($response);
             throw new Exception('No results from OCA webservice');      //String compared in operatives test
         }
         if (property_exists($xml, 'NewDataSet'))
