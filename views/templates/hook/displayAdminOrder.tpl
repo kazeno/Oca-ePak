@@ -57,24 +57,24 @@
             <div>
                 {l s='OCA Order Id' mod='ocaepak'}: {$ocaOrder->reference|escape:'htmlall':'UTF-8'}<br />
                 {l s='Status' mod='ocaepak'}: {$ocaStatus|escape:'htmlall':'UTF-8'}<br />
-                <{if $accepts}
-                    {l s='Ingressed Packages' mod='ocaepak'}: {$accepts|escape:'htmlall':'UTF-8'}<br />
+                {if $ocaAccepts}
+                    {l s='Ingressed Packages' mod='ocaepak'}: {$ocaAccepts|escape:'htmlall':'UTF-8'}<br />
                 {/if}
-                {if $rejects}
-                    {l s='Rejected Packages' mod='ocaepak'}: {$rejects|escape:'htmlall':'UTF-8'}<br />
+                {if $ocaRejects}
+                    {l s='Rejected Packages' mod='ocaepak'}: {$ocaRejects|escape:'htmlall':'UTF-8'}<br />
                 {/if}
                 {l s='Tracking' mod='ocaepak'}: <a href="https://www1.oca.com.ar/OEPTrackingWeb/trackingenvio.asp?numero1={$ocaOrder->tracking|escape:'htmlall':'UTF-8'}" target="_blank">{$ocaOrder->tracking|escape:'htmlall':'UTF-8'}</a><br />
                 <button id="oca-cancel-button" class="btn btn-danger" onclick="cancelOcaOrder()">{l s='Cancel OCA Order' mod='ocaepak'}</button>
                 <button id="oca-print-button" class="btn btn-primary" onclick="printIframe()">{l s='Print Package Stickers' mod='ocaepak'}</button><br />
                 <iframe src="{$stickerUrl|escape:'htmlall':'UTF-8'}" id="oca-sticker" frameborder="0" style="margin: 18px; width: 0; height: 0; max-width: 100%;"></iframe>
                 {literal}<script>
-                    $('#oca-print-button').hide();
+                    $('#oca-print-button, #oca-cancel-button').hide();
                     $('#oca-sticker').load(function () {
                         var $tables = $('#etiquetas > table', $(this).contents());
                         if ($tables.length > 0) {
                             $(this).height($(this).contents().height());
                             $(this).width($(this).contents().width());
-                            $('#oca-print-button').show();
+                            $('#oca-print-button, #oca-cancel-button').show();
                         } else {
                             $('#oca-sticker').hide().after('{/literal}{l s='No stickers available' mod='ocaepak'}{literal}');
                         }
@@ -101,5 +101,4 @@
     {elseif $ocaOrderStatus === 'unsubmitted'}
         %ORDER_GENERATOR_GOES_HERE%
     {/if}
-
 </div>

@@ -2,7 +2,7 @@
 /**
  * Oca e-Pak Module for Prestashop
  *
- * Tested in Prestashop v1.5.0.17, 1.5.6.2, 1.6.0.5, 1.6.0.14, 1.6.1.2
+ * Tested in Prestashop v1.5.0.17, 1.5.6.2, 1.6.0.5, 1.6.1.5
  *
  * @author    Rinku Kazeno <development@kazeno.co>
  *
@@ -67,7 +67,6 @@ class OcaEpak extends CarrierModule
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakOrder.php";
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakQuote.php";
         include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakRelay.php";
-        //include_once _PS_MODULE_DIR_."{$this->name}/classes/OcaEpakGeocoding.php";
 
         parent::__construct();
         $this->displayName = 'OCA e-Pak';
@@ -179,9 +178,6 @@ class OcaEpak extends CarrierModule
             $db->Execute(
                 'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::RELAYS_TABLE)
             ) AND
-            $db->Execute(
-                'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::GEOCODES_TABLE)
-            ) AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'ACCOUNT') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'EMAIL') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'PASSWORD') AND
@@ -189,7 +185,21 @@ class OcaEpak extends CarrierModule
             Configuration::deleteByName(self::CONFIG_PREFIX.'DEFWEIGHT') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'DEFVOLUME') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'FAILCOST') AND
-            Configuration::deleteByName(self::CONFIG_PREFIX.'POSTCODE')
+            Configuration::deleteByName(self::CONFIG_PREFIX.'POSTCODE') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'STREET') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'NUMBER') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'FLOOR') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'APARTMENT') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'LOCALITY') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'PROVINCE') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'CONTACT') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'REQUESTOR') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'OBSERVATIONS') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'BOXES') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'TIMESLOT') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'ADMISSION_BRANCH') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'ADMISSIONS_ENABLED') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'PICKUPS_ENABLED')
         );
     }
 
@@ -329,13 +339,12 @@ class OcaEpak extends CarrierModule
             ),
         );
         $fields_form2 = array(
-            'shipments' => array(
+            'form' => array(
                 'form' => array(
                     'id_form' => 'form2',
                     'legend' => array(
                         'title' => '3. '.$this->l('Shipments')
                     ),
-                    //'description' => $this->l('The address from where shipments will be made'),
                     'input' => array(
                         array(
                             'type' => 'text',
@@ -1179,8 +1188,7 @@ class OcaEpak extends CarrierModule
                     //$this->logError($data);
                     $this->guiAddToHeader($this->displayError($e->getMessage()));
                 }
-            }/* else
-                $this->guiAddToHeader(Tools::displayError($this->l('There is an error in the OCA order generator form')));*/
+            }
         }
 
         $ajaxUrl = str_replace('index.php', 'ajax-tab.php', $this->context->link->getAdminLink('AdminOcaEpak', true));
@@ -1198,11 +1206,15 @@ class OcaEpak extends CarrierModule
                     'Usr' => Configuration::get(OcaEpak::CONFIG_PREFIX.'EMAIL'),
                     'Psw' => Configuration::get(OcaEpak::CONFIG_PREFIX.'PASSWORD'),
                 ));
+                if (isset($admission->Error)) {
+                    throw new Exception((string)$admission->Error->Descripcion);
+                }
                 $status = (string)$admission->DetalleIngresos->Estado;
                 $accepts = (int)$admission->Resumen->CantidadIngresados;
                 $rejects = (int)$admission->Resumen->CantidadRechazados;
             } catch (Exception $e) {
-                $this->logError($e->getMessage());
+                //$this->logError($e->getMessage());
+                $this->guiAddToHeader($this->displayError($e->getMessage()));
                 $status = 'Error adquiriendo estado';
                 $accepts = $rejects = 0;
             }
@@ -1240,7 +1252,7 @@ class OcaEpak extends CarrierModule
 
     /**
      * Show pickup options
-     * @param Array $params ['address']
+     * @param array $params ['address']
      */
     public function hookDisplayCarrierList($params)
     {
@@ -1269,7 +1281,6 @@ class OcaEpak extends CarrierModule
                 ) );
                 return $this->display(__FILE__, 'displayCarrierList.tpl');
             } catch (Exception $e) {
-                //**/Tools::dieObject($e);
                 Logger::AddLog('Ocaepak: '.$this->l('Error getting pickup centers for cp')." {$params['address']->postcode}");
                 return FALSE;
             }
@@ -1298,7 +1309,6 @@ class OcaEpak extends CarrierModule
                 $gi = geoip_open(realpath(_PS_GEOIP_DIR_.(defined(_PS_GEOIP_CITY_FILE_) ? _PS_GEOIP_CITY_FILE_ : 'GeoLiteCity.dat')), GEOIP_STANDARD);
                 $record = geoip_record_by_addr($gi, Tools::getRemoteAddr());
                 if (is_object($record) && $record->country_code === 'AR' && $record->postal_code) {
-                    //**/Logger::addLog('postcode found by geocode: '.$record->postal_code);
                     Cache::store($cache_id, $record->postal_code);
                     $postcode = KznCarrier::cleanPostcode($record->postal_code);
                 } else
@@ -1450,7 +1460,7 @@ class OcaEpak extends CarrierModule
         return $this->soapClients[$url];
     }
 
-    public function executeWebservice($method, $params = array(), $forceUrl = null)
+    public function executeWebservice($method, $params = array(), $returnRaw = false, $forceUrl = null)
     {
         $services = array(
             self::OCA_PREVIOUS_URL => array(
@@ -1519,6 +1529,8 @@ class OcaEpak extends CarrierModule
             throw new Exception('Method not found in webservice: '.$method);
         try {
             $response = $this->_getSoapClient($url)->{$method}($params);
+            if ($returnRaw)
+                return $response->{$method.'Result'};
             $xml = new SimpleXMLElement($response->{$method.'Result'}->any);
         } catch (Exception $e) {
             throw new Exception($e->getMessage());
