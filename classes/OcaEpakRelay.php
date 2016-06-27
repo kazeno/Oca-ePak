@@ -42,11 +42,16 @@ class OcaEpakRelay extends ObjectModel
 
     public static function getByCartId($id_cart)
     {
-        ob_start(); ?>
-            SELECT `<?php echo pSQL(OcaEpak::RELAYS_ID); ?>`
-            FROM `<?php echo pSQL(_DB_PREFIX_.OcaEpak::RELAYS_TABLE);?>`
-            WHERE `id_cart` = '<?php echo (int)$id_cart; ?>'
-        <?php $query = ob_get_clean();
+        $query = KznCarrier::interpolateSql(
+            "SELECT `{ID}`
+            FROM `{TABLE}`
+            WHERE `id_cart` = '{CART}'",
+            array(
+                '{TABLE}' => _DB_PREFIX_.OcaEpak::RELAYS_TABLE,
+                '{ID}' => OcaEpak::RELAYS_ID,
+                '{CART}' => $id_cart,
+            )
+        );
         $id = Db::getInstance()->getValue($query);
 
         return $id ? (new OcaEpakRelay($id)) : NULL;

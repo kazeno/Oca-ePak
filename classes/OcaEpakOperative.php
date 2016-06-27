@@ -144,12 +144,18 @@ class OcaEpakOperative extends ObjectModel
     {
         if (!in_array($field, array('carrier_reference', 'reference', 'description', /*'addfee', 'id_shop'*/)))
             return false;
-        ob_start(); ?>
-            SELECT `<?php echo pSQL(OcaEpak::OPERATIVES_ID); ?>`
-            FROM `<?php echo pSQL(_DB_PREFIX_.OcaEpak::OPERATIVES_TABLE);?>`
-            WHERE `<?php echo pSQL($field); ?>` = '<?php echo (int)$id_field; ?>'
-            ORDER BY `<?php echo pSQL($field); ?>` DESC
-        <?php $query = ob_get_clean();
+        $query = KznCarrier::interpolateSql(
+            "SELECT `{ID}`
+            FROM `{TABLE}`
+            WHERE `{FIELD}` = '{IDFIELD}'
+            ORDER BY `{FIELD}` DESC",
+            array(
+                '{TABLE}' => _DB_PREFIX_.OcaEpak::OPERATIVES_TABLE,
+                '{ID}' => OcaEpak::OPERATIVES_ID,
+                '{FIELD}' => $field,
+                '{IDFIELD}' => $id_field,
+            )
+        );
         $id = Db::getInstance()->getValue($query);
         return $id ? new OcaEpakOperative($id) : false;
     }
@@ -158,14 +164,29 @@ class OcaEpakOperative extends ObjectModel
     {
         if (!is_null($filter_column) && !in_array($filter_column, array(OcaEpak::OPERATIVES_ID, 'carrier_reference', 'description', 'addfee', 'id_shop', 'type')))
             return false;
-        ob_start(); ?>
-            SELECT `<?php echo pSQL(OcaEpak::OPERATIVES_ID); ?>`
-            FROM `<?php echo pSQL(_DB_PREFIX_.OcaEpak::OPERATIVES_TABLE);?>`
-          <?php if($filter_column): ?>
-            WHERE `<?php echo pSQL($filter_column); ?>` = '<?php echo pSQL($filter_value); ?>'
-            ORDER BY `<?php echo pSQL($filter_column) ?>` DESC
-          <?php endif; ?>
-        <?php $query = ob_get_clean();
+        if ($filter_column) {
+            $query = KznCarrier::interpolateSql(
+                "SELECT `{ID}`
+                FROM `{TABLE}`
+                WHERE `{COLUMN}` = '{VALUE}'
+                ORDER BY `{COLUMN}` DESC",
+                array(
+                    '{TABLE}' => _DB_PREFIX_.OcaEpak::OPERATIVES_TABLE,
+                    '{ID}' => OcaEpak::OPERATIVES_ID,
+                    '{COLUMN}' => $filter_column,
+                    '{VALUE}' => $filter_value,
+                )
+            );
+        } else {
+            $query = KznCarrier::interpolateSql(
+                "SELECT `{ID}`
+                FROM `{TABLE}`",
+                array(
+                    '{TABLE}' => _DB_PREFIX_.OcaEpak::OPERATIVES_TABLE,
+                    '{ID}' => OcaEpak::OPERATIVES_ID,
+                )
+            );
+        }
         $res = Db::getInstance()->executeS($query);
         $ops = array();
         foreach ($res as $re) {
@@ -176,13 +197,17 @@ class OcaEpakOperative extends ObjectModel
 
     public static function getRelayedCarrierIds($returnObjects=false)
     {
-        ob_start(); ?>
-            SELECT `id_carrier`
-            FROM `<?php echo pSQL(_DB_PREFIX_);?>carrier` AS c
-            LEFT JOIN `<?php echo pSQL(_DB_PREFIX_.OcaEpak::OPERATIVES_TABLE);?>` AS o
+        $query = KznCarrier::interpolateSql(
+            "SELECT `id_carrier`
+            FROM `{PREFIX}carrier` AS c
+            LEFT JOIN `{TABLE}` AS o
             ON (o.`carrier_reference` = c.`id_reference`)
-            WHERE o.`type` IN ('PaS', 'SaS') AND c.`deleted` = 0
-        <?php $query = ob_get_clean();
+            WHERE o.`type` IN ('PaS', 'SaS') AND c.`deleted` = 0",
+            array(
+                '{TABLE}' => _DB_PREFIX_.OcaEpak::OPERATIVES_TABLE,
+                '{PREFIX}' => _DB_PREFIX_,
+            )
+        );
         $res = Db::getInstance()->executeS($query);
         $crs = array();
         foreach ($res as $re) {
@@ -195,11 +220,15 @@ class OcaEpakOperative extends ObjectModel
 
     public static function purgeCarriers()
     {
-        ob_start(); ?>
-            UPDATE `<?php echo pSQL(_DB_PREFIX_); ?>carrier`
+        $query = KznCarrier::interpolateSql(
+            "UPDATE `{PREFIX}carrier`
             SET deleted = 1
-            WHERE external_module_name = '<?php echo pSQL(OcaEpak::MODULE_NAME); ?>'
-        <?php $query = ob_get_clean();
+            WHERE external_module_name = '{MODULE}'",
+            array(
+                '{MODULE}' => OcaEpak::MODULE_NAME,
+                '{PREFIX}' => _DB_PREFIX_,
+            )
+        );
         return Db::getInstance()->execute($query);
     }
 

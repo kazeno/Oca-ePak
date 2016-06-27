@@ -27,41 +27,66 @@ class OcaEpakQuote
 
     public static function retrieve($reference, $postcode, $origin, $volume, $weight, $value)
     {
-        ob_start(); ?>
-            SELECT `price`
-            FROM `<?php echo pSQL(_DB_PREFIX_.OcaEpak::QUOTES_TABLE);?>`
-            WHERE reference = '<?php echo pSQL($reference); ?>'
-            AND postcode = '<?php echo pSQL($postcode); ?>'
-            AND origin = '<?php echo pSQL($origin); ?>'
-            AND ABS(volume - '<?php echo pSQL(round($volume, self::$volumePrecision)); ?>') < 0.000001
-            AND ABS(weight - '<?php echo pSQL($weight); ?>') < 0.000001
-            AND ABS(`value` - '<?php echo pSQL($value); ?>') < 1
-            AND `date` > DATE_SUB(NOW(), INTERVAL <?php echo pSQL(self::$expiry); ?> HOUR)
-        <?php return Db::getInstance()->getValue(ob_get_clean());
+        $query = KznCarrier::interpolateSql(
+            "SELECT `price`
+            FROM `{TABLE}`
+            WHERE reference = '{REFERENCE}'
+            AND postcode = '{POSTCODE}'
+            AND origin = '{ORIGIN}'
+            AND ABS(volume - '{VOLUME}') < 0.000001
+            AND ABS(weight - '{WEIGHT}') < 0.000001
+            AND ABS(`value` - '{VALUE}') < 1
+            AND `date` > DATE_SUB(NOW(), INTERVAL {EXPIRY} HOUR)",
+            array(
+                '{TABLE}' => _DB_PREFIX_.OcaEpak::QUOTES_TABLE,
+                '{REFERENCE}' => $reference,
+                '{POSTCODE}' => $postcode,
+                '{ORIGIN}' => $origin,
+                '{VOLUME}' => round($volume, self::$volumePrecision),
+                '{WEIGHT}' => $weight,
+                '{VALUE}' => $value,
+                '{EXPIRY}' => self::$expiry,
+            )
+        );
+        return Db::getInstance()->getValue($query);
     }
 
     public static function insert($reference, $postcode, $origin, $volume, $weight, $value, $price)
     {
-        ob_start(); ?>
-            REPLACE INTO `<?php echo pSQL(_DB_PREFIX_.OcaEpak::QUOTES_TABLE);?>`
+        $query = KznCarrier::interpolateSql(
+            "REPLACE INTO `{TABLE}`
             (reference, postcode, origin, volume, weight, `value`, price, `date`)
             VALUES
-            ('<?php echo pSQL($reference); ?>',
-            '<?php echo pSQL($postcode); ?>',
-            '<?php echo pSQL($origin); ?>',
-            '<?php echo pSQL(round($volume, self::$volumePrecision)); ?>',
-            '<?php echo pSQL($weight); ?>',
-            '<?php echo pSQL($value); ?>',
-            '<?php echo pSQL($price); ?>',
-            NOW())
-        <?php return Db::getInstance()->execute(ob_get_clean());
+            ('{REFERENCE}',
+            '{POSTCODE}',
+            '{ORIGIN}',
+            '{VOLUME}',
+            '{WEIGHT}',
+            '{VALUE}',
+            '{PRICE}',
+            NOW())",
+            array(
+                '{TABLE}' => _DB_PREFIX_.OcaEpak::QUOTES_TABLE,
+                '{REFERENCE}' => $reference,
+                '{POSTCODE}' => $postcode,
+                '{ORIGIN}' => $origin,
+                '{VOLUME}' => round($volume, self::$volumePrecision),
+                '{WEIGHT}' => $weight,
+                '{VALUE}' => $value,
+                '{PRICE}' => $price,
+            )
+        );
+        return Db::getInstance()->execute($query);
     }
 
     public static function clear()
     {
-        ob_start(); ?>
-            DELETE FROM `<?php echo pSQL(_DB_PREFIX_.OcaEpak::QUOTES_TABLE);?>` WHERE 1
-        <?php $query = ob_get_clean();
+        $query = KznCarrier::interpolateSql(
+            "DELETE FROM `{TABLE}` WHERE 1",
+            array(
+                '{TABLE}' => _DB_PREFIX_.OcaEpak::QUOTES_TABLE,
+            )
+        );
         return Db::getInstance()->execute($query);
     }
 }

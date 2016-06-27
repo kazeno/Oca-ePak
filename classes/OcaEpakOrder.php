@@ -67,12 +67,18 @@ class OcaEpakOrder extends ObjectModel
     {
         if (!in_array($field, array('id_order', 'reference', 'tracking', 'operation_code', /*'status'*/)))
             return false;
-        ob_start(); ?>
-            SELECT `<?php echo OcaEpak::ORDERS_ID; ?>`
-            FROM `<?php echo _DB_PREFIX_.OcaEpak::ORDERS_TABLE;?>`
-            WHERE `<?php echo $field; ?>` = '<?php echo (int)$id_field; ?>'
-            ORDER BY `<?php echo $field; ?>` DESC
-        <?php $query = ob_get_clean();
+        $query = KznCarrier::interpolateSql(
+            "SELECT `{ID}`
+            FROM `{TABLE}`
+            WHERE `{FIELD}` = '{IDFIELD}'
+            ORDER BY `{FIELD}` DESC",
+            array(
+                '{TABLE}' => _DB_PREFIX_.OcaEpak::ORDERS_TABLE,
+                '{ID}' => OcaEpak::ORDERS_ID,
+                '{FIELD}' => $field,
+                '{IDFIELD}' => $id_field,
+            )
+        );
         $id = Db::getInstance()->getValue($query);
         return $id ? new OcaEpakOrder($id) : false;
     }
@@ -104,7 +110,6 @@ class OcaEpakOrder extends ObjectModel
         $address['email'] = self::cleanOcaAttribute($data['customer']->email, self::OCA_EMAIL_LENGTH);
         $address['phone'] = self::cleanOcaAttribute($data['address']->phone, self::OCA_PHONE_LENGTH);
         $address['mobile'] = self::cleanOcaAttribute($data['address']->phone_mobile, self::OCA_MOBILE_LENGTH);
-
 
         ob_start();
         ?>
