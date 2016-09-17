@@ -17,7 +17,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.0.1
+ *  @file-version 1.0.2
  */
 
 class KznCarrier
@@ -112,7 +112,7 @@ class KznCarrier
                     (($product['width'])*($product['height'])*($product['depth']))/$divider :
                     $defVolume
                 )*$product['cart_quantity'];
-            $cost += $productObj->getPrice();
+            $cost += $productObj->getPrice()*$product['cart_quantity'];
         }
         $paddedVolume = round(pow(pow($volume, 1/3)+(2*$padding), 3), 6);
 

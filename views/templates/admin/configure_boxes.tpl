@@ -136,7 +136,7 @@
                 $('[id ^= "fieldset_packaging"]').show();
             } else {
                 $('[id ^= "fieldset_admissions"]').hide();
-                if (!$('input[name=oca_pickups]:checked').val())
+                if (!parseInt($('input[name=oca_pickups]:checked').val()))
                     $('[id ^= "fieldset_packaging"]').hide();
             }
         }
@@ -146,7 +146,7 @@
                 $('[id ^= "fieldset_packaging"]').show();
             } else {
                 $('[id ^= "fieldset_pickups"]').hide();
-                if (!$('input[name=admissions]:checked').val())
+                if (!parseInt($('input[name=oca_admissions]:checked').val()))
                     $('[id ^= "fieldset_packaging"]').hide();
             }
         }

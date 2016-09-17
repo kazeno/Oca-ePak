@@ -19,7 +19,7 @@
  *   own business needs, as long as no distribution of either the
  *   original module or the user-modified version is made.
  *
- *  @file-version 1.4.0.1
+ *  @file-version 1.4.1
  */
 
 if (!defined( '_PS_VERSION_'))
@@ -55,7 +55,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '1.4.0';
+        $this->version = '1.4.1';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.6');
@@ -137,6 +137,7 @@ class OcaEpak extends CarrierModule
             $tab2->add() AND
             $this->registerHook('displayCarrierList') AND
             $this->registerHook('displayAdminOrder') AND
+            $this->registerHook('displayOrderDetail') AND
             $this->registerHook('actionAdminPerformanceControllerBefore') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'ACCOUNT', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'EMAIL', '') AND
@@ -157,6 +158,7 @@ class OcaEpak extends CarrierModule
             Configuration::updateValue(self::CONFIG_PREFIX.'OBSERVATIONS', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'BOXES', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'TIMESLOT', '') AND
+            Configuration::updateValue(self::CONFIG_PREFIX.'GMAPS_API_KEY', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'ADMISSION_BRANCH', '') AND
             Configuration::updateValue(self::CONFIG_PREFIX.'ADMISSIONS_ENABLED', false) AND
             Configuration::updateValue(self::CONFIG_PREFIX.'PICKUPS_ENABLED', false)
@@ -197,6 +199,7 @@ class OcaEpak extends CarrierModule
             Configuration::deleteByName(self::CONFIG_PREFIX.'OBSERVATIONS') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'BOXES') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'TIMESLOT') AND
+            Configuration::deleteByName(self::CONFIG_PREFIX.'GMAPS_API_KEY') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'ADMISSION_BRANCH') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'ADMISSIONS_ENABLED') AND
             Configuration::deleteByName(self::CONFIG_PREFIX.'PICKUPS_ENABLED')
@@ -314,7 +317,7 @@ class OcaEpak extends CarrierModule
                             'label' => $this->l('CUIT'),
                             'name' => 'cuit',
                             'class' => 'fixed-width-lg',
-                            'desc' => $this->l('Must include all hyphens'),
+                            'desc' => $this->l('Must have the format ##-########-# where each # is a digit, and it must include the hyphens'),
                             'required' => true
                         ),
                         array(
@@ -355,6 +358,14 @@ class OcaEpak extends CarrierModule
                             'desc' => $this->l('The post code from where shipments will be made (only digits)'),
                             'required' => true
 
+                        ),
+                        array(
+                            'type' => 'text',
+                            'maxlength' => 60,
+                            'label' => $this->l('Google Maps API Key'),
+                            'name' => 'gmaps_api_key',
+                            'class' => 'fixed-width-xxl',
+                            'desc' => $this->l('To display the map where customers can pick their delivery branch at checkout you need a Google Maps API browser Key, which you can generate at the following URL:').' <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank" style="text-decoration: underline; font-weight: 700;">https://developers.google.com/maps/documentation/javascript/get-api-key</a>'
                         ),
                         array(
                             'type' => _PS_VERSION_ < 1.6 ? 'radio' : 'switch',
@@ -837,6 +848,7 @@ class OcaEpak extends CarrierModule
             'defweight' => Tools::getValue('defweight', Configuration::get(self::CONFIG_PREFIX.'DEFWEIGHT')),
             'defvolume' => Tools::getValue('defvolume', Configuration::get(self::CONFIG_PREFIX.'DEFVOLUME')),
             'postcode' => Tools::getValue('postcode', Configuration::get(self::CONFIG_PREFIX.'POSTCODE')),
+            'gmaps_api_key' => Tools::getValue('gmaps_api_key', Configuration::get(self::CONFIG_PREFIX.'GMAPS_API_KEY')),
             'failcost' => Tools::getValue('failcost', Configuration::get(self::CONFIG_PREFIX.'FAILCOST')),
             'oca_admissions' => Tools::getValue('oca_admissions', Configuration::get(self::CONFIG_PREFIX.'ADMISSIONS_ENABLED')),
             'oca_pickups' => Tools::getValue('oca_pickups', Configuration::get(self::CONFIG_PREFIX.'PICKUPS_ENABLED')),
@@ -866,7 +878,7 @@ class OcaEpak extends CarrierModule
             $error .= $this->displayError($this->l('Invalid email'));
         if (!Validate::isPasswd(Tools::getValue('password'), 3))
             $error .= $this->displayError($this->l('Invalid password'));
-        if (!Tools::strlen(trim(Tools::getValue('cuit'))))
+        if (!preg_match('/^\d{2}-\d{8}-\d{1}$/', trim(Tools::getValue('cuit'))))
             $error .= $this->displayError($this->l('Invalid CUIT'));
         if (!is_numeric(Tools::getValue('defweight')))
             $error .= $this->displayError($this->l('Invalid failsafe default weight'));
@@ -1089,8 +1101,8 @@ class OcaEpak extends CarrierModule
                 foreach ($form['boxes'] as &$box) {      //split cost and weight proportionally
                     $vol = ($box['l']*$box['d']*$box['h']);
                     $volumePercentage = $vol/$boxVolume;
-                    $box['v'] = number_format((float)$volumePercentage*$cartData['cost'], 2);
-                    $box['w'] = number_format((float)$volumePercentage*$cartData['weight'], 2);
+                    $box['v'] = number_format((float)$volumePercentage*$cartData['cost'], 2, '.', '');
+                    $box['w'] = number_format((float)$volumePercentage*$cartData['weight'], 2, '.', '');
                 }
             }
             return $form;
@@ -1260,7 +1272,7 @@ class OcaEpak extends CarrierModule
             return FALSE;
         $carrierIds = OcaEpakOperative::getRelayedCarrierIds();
         if (count($carrierIds)) {
-            $this->context->controller->addJS('http'.((Configuration::get('PS_SSL_ENABLED') && Configuration::get('PS_SSL_ENABLED_EVERYWHERE')) ? 's' : '').'://maps.google.com/maps/api/js?region=AR');
+            $this->context->controller->addJS('http'.(Configuration::get('PS_SSL_ENABLED') ? 's' : '').'://maps.google.com/maps/api/js?region=AR&key='.Configuration::get(self::CONFIG_PREFIX.'GMAPS_API_KEY'));
             try {
                 $relay = OcaEpakRelay::getByCartId($this->context->cookie->id_cart);
                 if ($params['address']->id_state) {
@@ -1277,6 +1289,7 @@ class OcaEpak extends CarrierModule
                     'ocaepak_relay_auto' => $relay ? $relay->auto : null,
                     'customerStateCode' => Tools::strlen($stateCode) === 1 ? $stateCode : '',
                     'psver' => _PS_VERSION_,
+                    'gmaps_api_key' => Configuration::get(self::CONFIG_PREFIX.'GMAPS_API_KEY'),
                     'force_ssl' => Configuration::get('PS_SSL_ENABLED') || Configuration::get('PS_SSL_ENABLED_EVERYWHERE')
                 ) );
                 return $this->display(__FILE__, 'displayCarrierList.tpl');
@@ -1286,6 +1299,20 @@ class OcaEpak extends CarrierModule
             }
         }
         return NULL;
+    }
+
+    public function hookDisplayOrderDetail($params)
+    {
+        $relay = OcaEpakRelay::getByCartId($params['order']->id_cart);
+        if (!$relay)
+            return false;
+        $distributionCenter = $this->retrieveOcaBranchData($relay->distribution_center_id);
+        if (!$distributionCenter)
+            return false;
+        $this->context->smarty->assign(  array(
+            'distributionCenter' => $distributionCenter,
+        ) );
+        return $this->display(__FILE__, /*_PS_VERSION_ < '1.6' ? 'displayAdminOrder15_ajax.tpl' : */'displayOrderDetail.tpl');
     }
 
     public function hookActionAdminPerformanceControllerBefore()
@@ -1298,6 +1325,8 @@ class OcaEpak extends CarrierModule
 
     public function getOrderShippingCost($cart, $shipping_cost)
     {
+        if (Tools::getValue('action') === 'searchCarts')    //prevent BO new order stalling
+            return false;
         $address = new Address($cart->id_address_delivery);
         if (!$address->id || !$address->postcode) {
             $cache_id = 'OcaEpak::cartPostCode_'.(int)$cart->id;
