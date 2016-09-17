@@ -16,7 +16,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.3
+ *  @file-version 1.4.1
  *}
 
 {if !empty($ocaepak_relays)}
@@ -97,7 +97,7 @@ var ocaRelayAuto = {if $ocaepak_relay_auto}{$ocaepak_relay_auto|escape:'quotes':
     $(document).ready(function() {
         if (typeof google === 'undefined') {
             $.ajax({
-                url: '//maps.google.com/maps/api/js?region=AR&callback=ocaEpakCallback',
+                url: {/literal}'//maps.google.com/maps/api/js?region=AR&callback=ocaEpakCallback&key={$gmaps_api_key|escape:'htmlall':'UTF-8'}'{literal},
                 dataType: 'script',
                 async: false
             });
@@ -158,7 +158,7 @@ var ocaRelayAuto = {if $ocaepak_relay_auto}{$ocaepak_relay_auto|escape:'quotes':
         function requestFail () {
             if (postcodeParam.length > 0) {
                 postcodeParam = '';
-                $.getJSON('//maps.googleapis.com/maps/api/geocode/json?region=ar&address=' + encodeURIComponent(addressText) + '&components=country:AR', null, requestSuccess).fail(requestFail);
+                $.getJSON({/literal}'//maps.googleapis.com/maps/api/geocode/json?region=ar&key={$gmaps_api_key|escape:'htmlall':'UTF-8'}&address='{literal} + encodeURIComponent(addressText) + '&components=country:AR', null, requestSuccess).fail(requestFail);
             } else {
                 var assigned = previousRelay ? previousRelay : 0;
                 assignBranch(assigned, previousRelay);
@@ -170,7 +170,7 @@ var ocaRelayAuto = {if $ocaepak_relay_auto}{$ocaepak_relay_auto|escape:'quotes':
             if (!data.results || !data.results.length) {
                 requestFail();
             } else {
-                var image = new google.maps.MarkerImage('http://maps.google.com/mapfiles/ms/icons/homegardenbusiness.png');
+                var image = new google.maps.MarkerImage('//maps.google.com/mapfiles/ms/icons/homegardenbusiness.png');
                 home = data.results[0].geometry.location;
                 var latlng = new google.maps.LatLng(home.lat, home.lng);
                 var marker = new google.maps.Marker({
@@ -205,7 +205,7 @@ var ocaRelayAuto = {if $ocaepak_relay_auto}{$ocaepak_relay_auto|escape:'quotes':
         } else if (customerAddress.postcode.match(/^[A-Za-z]/) != null) {
             postcodeParam = '|postal_code:' +customerAddress.postcode;
         }
-        $.getJSON('//maps.googleapis.com/maps/api/geocode/json?region=ar&address=' + encodeURIComponent(addressText) + '&components=country:AR' + postcodeParam, null, requestSuccess).fail(requestFail);
+        $.getJSON({/literal}'//maps.googleapis.com/maps/api/geocode/json?region=ar&key={$gmaps_api_key|escape:'htmlall':'UTF-8'}&address='{literal} + encodeURIComponent(addressText) + '&components=country:AR' + postcodeParam, null, requestSuccess).fail(requestFail);
         for (var i=0; i<ocaRelays.length; i++) {
             if (!ocaRelays[i]['Latitud'] || !ocaRelays[i]['Longitud'])
                 continue;

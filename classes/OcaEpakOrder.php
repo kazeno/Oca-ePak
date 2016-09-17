@@ -110,6 +110,7 @@ class OcaEpakOrder extends ObjectModel
         $address['email'] = self::cleanOcaAttribute($data['customer']->email, self::OCA_EMAIL_LENGTH);
         $address['phone'] = self::cleanOcaAttribute($data['address']->phone, self::OCA_PHONE_LENGTH);
         $address['mobile'] = self::cleanOcaAttribute($data['address']->phone_mobile, self::OCA_MOBILE_LENGTH);
+        $reference = self::cleanOcaAttribute((Tools::strlen(trim($data['address']->dni)) ? $data['address']->dni : $data['order']->reference), self::OCA_REMIT_LENGTH);
 
         ob_start();
         ?>
@@ -118,7 +119,7 @@ class OcaEpakOrder extends ObjectModel
             <origenes>
                 <origen calle="<?php  echo $config['street'];  ?>" nro="<?php  echo $config['number'];  ?>" piso="<?php  echo $config['floor'];  ?>" depto="<?php  echo $config['apartment'];  ?>" cp="<?php  echo $config['postcode'];  ?>" localidad="<?php  echo $config['locality'];  ?>" provincia="<?php  echo $config['province'];  ?>" contacto="<?php  echo $config['contact'];  ?>" email="<?php  echo $config['email'];  ?>" solicitante="<?php  echo $config['requestor'];  ?>" observaciones="<?php  echo $config['observations'];  ?>" centrocosto="<?php  echo $costCenter;  ?>" idfranjahoraria="<?php  echo $config['timeslot'];  ?>" <?php  if ($data['origin_imposition_center_id']):  ?>idcentroimposicionorigen="<?php  echo $data['origin_imposition_center_id'];  ?>" <?php  endif;  ?>fecha="<?php  echo $data['date'];  ?>">
                     <envios>
-                        <envio idoperativa="<?php  echo self::cleanOcaAttribute($data['operative']->reference, self::OCA_OPERATIVE_LENGTH);  ?>" nroremito="<?php  echo self::cleanOcaAttribute($data['order']->reference, self::OCA_REMIT_LENGTH);  ?>">
+                        <envio idoperativa="<?php  echo self::cleanOcaAttribute($data['operative']->reference, self::OCA_OPERATIVE_LENGTH);  ?>" nroremito="<?php  echo $reference;  ?>">
                             <destinatario apellido="<?php  echo $address['lastname'];  ?>" nombre="<?php  echo $address['firstname'];  ?>" calle="<?php  echo $address['street'];  ?>" nro="<?php  echo $address['number'];  ?>" piso="<?php  echo $address['floor'];  ?>" depto="<?php  echo $address['apartment'];  ?>" localidad="<?php  echo $address['locality'];  ?>" provincia="<?php  echo $address['province'];  ?>" cp="<?php  echo $data['postcode'];  ?>" telefono="<?php  echo $address['phone'];  ?>" email="<?php  echo $address['email'];  ?>" idci="<?php  echo $idci;  ?>" celular="<?php  echo $address['mobile'];  ?>" observaciones="<?php  echo $address['observations'];  ?>"/>
                             <paquetes><?php  foreach ($data['boxes'] as $box) :  ?>
                                 <paquete alto="<?php  echo self::cleanOcaAttribute($box['h'], self::OCA_ATTR_LENGTH);  ?>" ancho="<?php  echo self::cleanOcaAttribute($box['d'], self::OCA_ATTR_LENGTH);  ?>" largo="<?php  echo self::cleanOcaAttribute($box['l'], self::OCA_ATTR_LENGTH);  ?>" peso="<?php  echo self::cleanOcaAttribute($box['w'], self::OCA_ATTR_LENGTH);  ?>" valor="<?php  echo self::cleanOcaAttribute($box['v'], self::OCA_ATTR_LENGTH);  ?>" cant="<?php  echo self::cleanOcaAttribute($box['q'], self::OCA_ATTR_LENGTH);  ?>" />
@@ -274,7 +275,7 @@ class OcaEpakOrder extends ObjectModel
     public static function geocodeAddress($address, $fullPostcode = '')
     {
         $postcodeParams = $fullPostcode ? ('|postal_code:'.$fullPostcode) : '';
-        $url = parse_url('http://maps.googleapis.com/maps/api/geocode/json?region=ar&language=es&address=' . urlencode($address) . '&components=country:AR'.$postcodeParams);
+        $url = parse_url('http://maps.googleapis.com/maps/api/geocode/json?region=ar&key='.Configuration::get(OcaEpak::CONFIG_PREFIX.'GMAPS_API_KEY').'&language=es&address=' . urlencode($address) . '&components=country:AR'.$postcodeParams);
         $query = isset($url['query']) ? "?{$url['query']}" : '';
         if ($fp = fsockopen('tls://'.$url['host'], 443)) {
             fwrite($fp, "GET {$url['path']}{$query} HTTP/1.0\r\n");

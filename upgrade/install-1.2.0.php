@@ -17,7 +17,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- * @file-version 1.2
+ * @file-version 1.4.1
  */
 
 if (!defined('_PS_VERSION_'))
@@ -29,7 +29,7 @@ function upgrade_module_1_2_0($module) {
         include_once _PS_MODULE_DIR_."{$module->name}/classes/KznCarrier.php";
     return (
         Db::getInstance()->execute(
-            'DROP TABLE `'.pSQL(_DB_PREFIX_.OcaEpak::QUOTES_TABLE).'`'
+            'DROP TABLE IF EXISTS`'.pSQL(_DB_PREFIX_.OcaEpak::QUOTES_TABLE).'`'
         ) AND
         Db::getInstance()->Execute(
             KznCarrier::interpolateSqlFile($module->name, 'create-quotes-table', array(

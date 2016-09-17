@@ -17,7 +17,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- * @file-version 1.0
+ * @file-version 1.4.1
  */
 
 if (!defined('_PS_VERSION_'))
@@ -27,7 +27,7 @@ function upgrade_module_1_1_2($module) {
     // Process Module upgrade for quote cache
     return (
         Db::getInstance()->execute(
-            'DROP TABLE `' . pSQL(_DB_PREFIX_ . OcaEpak::QUOTES_TABLE) . '`'
+            'DROP TABLE IF EXISTS`' . pSQL(_DB_PREFIX_ . OcaEpak::QUOTES_TABLE) . '`'
         ) AND
         $module->unregisterHook('actionCartSave') AND
         Db::getInstance()->Execute(
