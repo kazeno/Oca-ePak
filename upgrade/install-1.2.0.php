@@ -17,7 +17,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- * @file-version 1.4.1
+ * @file-version 1.4.3
  */
 
 if (!defined('_PS_VERSION_'))
@@ -36,7 +36,7 @@ function upgrade_module_1_2_0($module) {
                 '{$DB_PREFIX}' => _DB_PREFIX_,
                 '{$TABLE_NAME}' => OcaEpak::QUOTES_TABLE,
             ))
-        ) AND
+        )/* AND
         Db::getInstance()->Execute(
             KznCarrier::interpolateSqlFile($module->name, 'create-geocodes-table', array(
                 '{$DB_PREFIX}' => _DB_PREFIX_,
@@ -51,7 +51,7 @@ function upgrade_module_1_2_0($module) {
                 '{$TABLE_ID}' => OcaEpak::GEOCODES_ID
             ))
 
-        )
+        )*/
     );
 }
 
