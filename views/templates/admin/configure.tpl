@@ -51,6 +51,12 @@
             color: #000;
         }
     </style>
+{/literal}{else}{literal}
+    <style>
+        #form2 .chosen-container {
+            width: 100% !important;
+        }
+    </style>
 {/literal}{/if}
 {literal}
     <script>

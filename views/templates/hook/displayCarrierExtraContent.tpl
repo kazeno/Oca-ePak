@@ -19,16 +19,12 @@
  *  @file-version 1.4.3
  *}
 
-<div id="oca-delivery-options">
-     {if $psver < 1.6}
-        <h3 class="carrier_title">{l s='Please select your preferred pick-up location:' mod='ocaepak'}</h3>
-    {else}
-        <p class="carrier_title">{l s='Please select your preferred pick-up location:' mod='ocaepak'}</p>
-    {/if}
-    <div id="oca-map"></div>
+<div id="oca-delivery-options-{$currentOcaCarrier|escape:'htmlall':'UTF-8'}">
+    <p class="carrier_title">{l s='Please select your preferred pick-up location:' mod='ocaepak'}</p>
+    <div id="oca-map-{$currentOcaCarrier|escape:'htmlall':'UTF-8'}"></div>
     <div class="radius-input">
-        <label for="ocaBranchSelect">{l s='Selected Branch' mod='ocaepak'}:</label>
-        <select name="branch" id="ocaBranchSelect" class="form-control"></select>
+        <label for="ocaBranchSelect-{$currentOcaCarrier|escape:'htmlall':'UTF-8'}">{l s='Selected Branch' mod='ocaepak'}:</label>
+        <select name="branch" id="ocaBranchSelect-{$currentOcaCarrier|escape:'htmlall':'UTF-8'}" class="form-control"></select>
     </div>
 </div>
 <hr />
@@ -38,6 +34,4 @@ var customerAddress = JSON.parse('{$customerAddress|@json_encode|escape:'quotes'
 var customerStateCode = '{$customerStateCode|escape:'quotes':'UTF-8'}';
 var ocaSelectedRelay = {if $ocaepak_selected_relay}{$ocaepak_selected_relay|escape:'quotes':'UTF-8'}{else}null{/if};
 var ocaRelayAuto = {if $ocaepak_relay_auto}{$ocaepak_relay_auto|escape:'quotes':'UTF-8'}{else}null{/if};
-if (typeof ocaEpakCallback !== 'undefined')
-    ocaEpakCallback();
 </script>
