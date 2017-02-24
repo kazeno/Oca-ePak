@@ -84,7 +84,7 @@ if ((typeof ocaRelayCarriers !== 'undefined') && (typeof customerAddress !== 'un
             function requestFail () {
                 if (postcodeParam.length > 0) {
                     postcodeParam = '';
-                    $.getJSON('//maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR', null, requestSuccess).fail(requestFail);
+                    $.getJSON('https://maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR', null, requestSuccess).fail(requestFail);
                 } else {
                     var assigned = previousRelay ? previousRelay : 0;
                     assignBranch(assigned, previousRelay);
@@ -165,7 +165,7 @@ if ((typeof ocaRelayCarriers !== 'undefined') && (typeof customerAddress !== 'un
                     });
                 })(i);
             }
-            $.getJSON('//maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR' + postcodeParam, null, requestSuccess).fail(requestFail);
+            $.getJSON('https://maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR' + postcodeParam, null, requestSuccess).fail(requestFail);
         }
 
         function assignClosestBranch() {
@@ -204,9 +204,11 @@ if ((typeof ocaRelayCarriers !== 'undefined') && (typeof customerAddress !== 'un
             if (!previous)
                 relay_selection(markers[index].ocaRelayId);
             var bounds = new google.maps.LatLngBounds();
-            bounds.extend(new google.maps.LatLng(home.lat, home.lng));
-            bounds.extend(markers[index].getPosition());
-            map.fitBounds(bounds);
+            if ((typeof home !== 'undefined') && home.lat && home.lng) {
+                bounds.extend(new google.maps.LatLng(home.lat, home.lng));
+                bounds.extend(markers[index].getPosition());
+                map.fitBounds(bounds);
+            }
         }
 
         function formatInfowindow(desc, address, selected) {
@@ -219,6 +221,8 @@ if ((typeof ocaRelayCarriers !== 'undefined') && (typeof customerAddress !== 'un
         }
 
         function toTitleCase(str) {
+            if ($.isArray(str))
+                str = str[0];
             return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
         }
 
