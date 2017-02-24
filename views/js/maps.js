@@ -11,11 +11,9 @@
     var iconUnselected = '//maps.google.com/mapfiles/kml/pal3/icon28.png';
 
     $(document).ready(function() {
-        if (typeof customerAddress === 'undefined')
-            return null;
         ocaEpakCallback = function () {
             $('input.delivery_option_radio:not(.relay_option_radio)').change(carrier_selection);
-            if (!$('#ocaBranchSelect option').length) {
+            if (!$('#ocaBranchSelect option').length && (typeof customerAddress !== 'undefined') && (customerAddress.postcode in ocaRelays)) {
                 var $select = $('#ocaBranchSelect');
                 $.each(ocaRelays[customerAddress.postcode], function (ind, relay) {
                     $select.append($("<option>").attr('value',ind).text(
@@ -25,8 +23,8 @@
             }
             carrier_selection();
         };
-        ocaEpakCallback();
-
+        if ((typeof customerAddress !== 'undefined') && (customerAddress.id > 0))
+            ocaEpakCallback();
     });
 
     function initialize() {
@@ -87,7 +85,7 @@
         function requestFail () {
             if (postcodeParam.length > 0) {
                 postcodeParam = '';
-                $.getJSON('//maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR', null, requestSuccess).fail(requestFail);
+                $.getJSON('https://maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR', null, requestSuccess).fail(requestFail);
             } else {
                 var assigned = previousRelay ? previousRelay : 0;
                 assignBranch(assigned, previousRelay);
@@ -168,7 +166,7 @@
                 });
             })(i);
         }
-        $.getJSON('//maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR' + postcodeParam, null, requestSuccess).fail(requestFail);
+        $.getJSON('https://maps.googleapis.com/maps/api/geocode/json?region=ar&key='+ocaGmapsKey+'&address=' + encodeURIComponent(addressText) + '&components=country:AR' + postcodeParam, null, requestSuccess).fail(requestFail);
     }
 
     function assignClosestBranch() {
@@ -207,9 +205,11 @@
         if (!previous)
             relay_selection(markers[index].ocaRelayId);
         var bounds = new google.maps.LatLngBounds();
-        bounds.extend(new google.maps.LatLng(home.lat, home.lng));
-        bounds.extend(markers[index].getPosition());
-        map.fitBounds(bounds);
+        if ((typeof home !== 'undefined') && home.lat && home.lng) {
+            bounds.extend(new google.maps.LatLng(home.lat, home.lng));
+            bounds.extend(markers[index].getPosition());
+            map.fitBounds(bounds);
+        }
     }
 
     function formatInfowindow(desc, address, selected) {
@@ -222,6 +222,8 @@
     }
 
     function toTitleCase(str) {
+        if ($.isArray(str))
+            str = str[0];
         return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
     }
 

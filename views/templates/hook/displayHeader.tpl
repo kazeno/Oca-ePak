@@ -16,12 +16,12 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.4.3
+ *  @file-version 1.4.3.1
  *}
 
 <script>
 var ocaRelays = JSON.parse('{$ocaepak_relays|@json_encode|escape:'quotes':'UTF-8' nofilter}');
-var ocaRelayUrl = '{$link->getModuleLink($ocaepak_name, 'relay', [], $force_ssl)|escape:'quotes':'UTF-8'}';
+var ocaRelayUrl = '{$link->getModuleLink($ocaepak_name, 'relay', [], $force_ssl)|escape:'quotes':'UTF-8' nofilter}';
 var ocaRelayCarriers = JSON.parse({$relayed_carriers|@json_encode|escape:'quotes':'UTF-8' nofilter});
 var ocaGmapsKey = '{$gmaps_api_key|escape:'htmlall':'UTF-8'}';
 </script>

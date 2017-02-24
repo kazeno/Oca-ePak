@@ -19,7 +19,7 @@
  *   own business needs, as long as no distribution of either the
  *   original module or the user-modified version is made.
  *
- *  @file-version 1.4.3
+ *  @file-version 1.4.4
  */
 
 if (!defined( '_PS_VERSION_'))
@@ -56,7 +56,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '1.4.3';
+        $this->version = '1.4.4';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.7');
@@ -201,9 +201,9 @@ class OcaEpak extends CarrierModule
             $db->Execute(
                 'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::QUOTES_TABLE)
             ) AND
-            $db->Execute(
+            /*$db->Execute(
                 'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::RELAYS_TABLE)
-            ) AND
+            ) AND*/
             $db->Execute(
                 'DROP TABLE IF EXISTS '.pSQL(_DB_PREFIX_.self::BRANCHES_TABLE)
             ) AND
@@ -1296,7 +1296,7 @@ class OcaEpak extends CarrierModule
     public function hookDisplayHeader($params)
     {
         if (_PS_VERSION_ < 1.7) {
-            if (!property_exists($this->context->controller, 'php_self') || ($this->context->controller->php_self !== 'order-opc'))
+            if ((!property_exists($this->context->controller, 'php_self') || !in_array($this->context->controller->php_self, array('order-opc', 'order'))) && (!property_exists($this->context->controller, 'page_name') || !in_array($this->context->controller->page_name, array('module-supercheckout-supercheckout'))))
                 return null;
             $this->context->controller->addCSS($this->_path.'views/css/checkout.css');
             if (!in_array('http'.(Configuration::get('PS_SSL_ENABLED') ? 's' : '').'://maps.google.com/maps/api/js?region=AR&key='.Configuration::get(self::CONFIG_PREFIX.'GMAPS_API_KEY'), $this->context->controller->js_files))
@@ -1383,7 +1383,59 @@ class OcaEpak extends CarrierModule
                     'psver' => _PS_VERSION_,
                     'force_ssl' => Configuration::get('PS_SSL_ENABLED') || Configuration::get('PS_SSL_ENABLED_EVERYWHERE')
                 ) );
-                return $this->display(__FILE__, 'displayCarrierList.tpl');
+                if (in_array(Tools::getValue('method', ''), array(
+                    'updateAddressesSelected',      //possible guest checkout
+                )) || in_array(Tools::getValue('action', ''), array(
+                    'loadCarrier',                   //onepagecheckoutps
+                    'loadCarriers'                   //supercheckout
+                ))) {
+                    $carrierIds = OcaEpakOperative::getRelayedCarrierIds();
+                    if (count($carrierIds)) {
+                        $langs = Language::getLanguages(true);
+                        $addresses = $this->context->customer->getAddresses($langs[0]['id_lang']);
+                        $postcodes = array();
+                        foreach ($addresses as $address) {
+                            if ($address['id_country'] == Country::getByIso('AR'))
+                                $postcodes[] = $address['postcode'];
+                        }
+                        if (!count($postcodes)) {
+                            $cache_id = 'OcaEpak::cartPostCode_'.(int)$this->context->cart->id;
+                            if (Cache::isStored($cache_id))
+                                $postcodes[] = Cache::retrieve($cache_id);
+                            else
+                                return null;
+                        }
+                        try {
+                            $branches = array();
+                            $curCp = 'NULL';
+                            foreach ($postcodes as $postcode) {
+                                $curCp = $postcode;
+                                $brs = OcaEpakBranches::retrieve(KznCarrier::cleanPostcode($postcode));      //get cache
+                                if (count($brs)) {
+                                    $branches[$postcode] = $brs;
+                                } else {
+                                    $branches[$postcode] = $this->retrieveOcaBranches(self::OCA_SERVICE_DELIVERY, KznCarrier::cleanPostcode($postcode));
+                                    if (count($branches[$postcode]))
+                                        OcaEpakBranches::insert(KznCarrier::cleanPostcode($postcode), $branches[$postcode]);
+                                }
+
+                            }
+                            $this->context->smarty->assign(  array(
+                                'ocaepak_relays' => $branches,
+                                'relayed_carriers' => Tools::jsonEncode($carrierIds),
+                                'ocaepak_name' => $this->name,
+                                'gmaps_api_key' => Configuration::get(self::CONFIG_PREFIX.'GMAPS_API_KEY'),
+                                'force_ssl' => Configuration::get('PS_SSL_ENABLED') || Configuration::get('PS_SSL_ENABLED_EVERYWHERE')
+                            ) );
+                        } catch (Exception $e) {
+                            Logger::AddLog('Ocaepak: '.$this->l('Error getting pickup centers for cp')." {$curCp}");
+                            return null;
+                        }
+                    }
+                    return $this->display(__FILE__, 'displayHeader.tpl') . $this->display(__FILE__,
+                            'displayCarrierList.tpl');
+                } else
+                    return $this->display(__FILE__, 'displayCarrierList.tpl');
             } catch (Exception $e) {
                 Logger::AddLog('Ocaepak: '.$this->l('Error getting pickup centers for cp')." {$params['address']->postcode}");
                 return FALSE;
@@ -1396,10 +1448,10 @@ class OcaEpak extends CarrierModule
     {
         $carrierIds = OcaEpakOperative::getRelayedCarrierIds();
         if (count($carrierIds) && in_array($params['carrier']['id'], $carrierIds)) {
+            $cart = new Cart($this->context->cookie->id_cart);
+            $address = new Address($cart->id_address_delivery);
             try {
                 $relay = OcaEpakRelay::getByCartId($this->context->cookie->id_cart);
-                $cart = new Cart($this->context->cookie->id_cart);
-                $address = new Address($cart->id_address_delivery);
                 if ($address->id_state) {
                     $state = new State($address->id_state);
                     $stateCode = trim($state->iso_code);
@@ -1565,6 +1617,8 @@ class OcaEpak extends CarrierModule
         try {
             $data = $postcode ? $this->executeWebservice('GetCentrosImposicionConServiciosByCP', array('CodigoPostal' => $postcode)) : $this->executeWebservice('GetCentrosImposicionConServicios');
             $relays = array();
+            if (!is_array($data))
+                $data = array($data);
             foreach ($data as $table) {
                 $rel = Tools::jsonDecode(str_replace('{}', '""', Tools::jsonEncode((array)$table)), TRUE);
                 $servs = $rel['Servicios']['Servicio'];
