@@ -52,9 +52,9 @@ if ((typeof ocaRelayCarriers !== 'undefined') && (typeof customerAddress !== 'un
             if ($elem.attr('id') !== 'delivery_option_'+id_carrier) {
                 return null;
             } else
-                $('.delivery-option .carrier-extra-content').hide();
+                $('.delivery-options .carrier-extra-content').hide();
             if ($elem.prop('checked')) {
-                $elem.closest('.delivery-option').find('.carrier-extra-content').show();
+                $elem.closest('.delivery-options').find('.carrier-extra-content').show();
                 relay_selection(markers[currentMarkerIndex].ocaRelayId);
                 if (map) {
                     google.maps.event.trigger(map, 'resize');
