@@ -17,7 +17,7 @@
  *  own business needs, as long as no distribution of either the
  *  original module or the user-modified version is made.
  *
- *  @file-version 1.4.3
+ *  @file-version 1.5
  */
 
 class OcaEpakBranches
@@ -38,7 +38,13 @@ class OcaEpakBranches
             )
         );
         $result = Db::getInstance()->executeS($query);
-        return is_array($result) ? $result : array();
+        if (!is_array($result))
+            return array();
+        $branches = array();
+        foreach ($result as $branch) {
+            $branches[$branch['IdCentroImposicion']] = $branch;
+        }
+        return $branches;
     }
 
     public static function insert($postcode, $branches)
