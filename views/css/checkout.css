@@ -3,6 +3,13 @@
     height: 320px;
     margin-bottom: 26px;
 }
+#oca-dropdown > .row {
+    margin-top: 18px;
+    margin-bottom: 18px;
+}
+#oca-dropdown > .row > div {
+    min-height: 30px;
+}
 #uniform-ocaBranchSelect > span {
     background-color: white;
     border: 1px solid #d6d4d4;
@@ -31,8 +38,10 @@
 /*PS 1.7*/
 #checkout label img[alt='Oca ePak'] {
     padding-top: 20px;
+    position: relative;
+    left: -12px;
+    top: 12px;
 }
-
 div[id^="oca-delivery-options-"] {
     margin-bottom: 20px;
 }
