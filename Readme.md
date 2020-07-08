@@ -14,6 +14,10 @@ Este modulo es compatible con las versiones 1.6 y 1.7 de Prestashop.
 
 En general no es compatible con modulos de One Page Checkout ya que todos cargan los elementos del checkout de maneras diferentes. Si requieres compatibilidad con el tuyo por favor contacta a su autor correspondiente. 
 
+## Installation
+
+Necesitas descargar alguna de las versiones pre-empaquetadas en la página de [Releases](https://github.com/kazeno/Oca-ePak/releases).
+
 ## Author
 
 Rinku Kazeno
