@@ -5,7 +5,7 @@
  *  @file-version 1.3
  *}
 
-<div class="row">
+<div class="row card-body">
     <div class="col-xs-6">
         {if !empty($quoteError)}
             <p class="warn alert alert-danger">

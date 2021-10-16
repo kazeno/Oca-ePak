@@ -5,8 +5,8 @@
  *  @file-version 1.4
  *}
 
-<div class="panel">
-    <div class="panel-heading">
+<div class="panel card">
+    <div class="panel-heading card-header">
         <img src="../modules/{$moduleName|trim|escape:'htmlall':'UTF-8'}/logo.gif" alt="logo" /> {l s='OCA ePak Information' mod='ocaepak'}
     </div>
     <div id="oca-ajax-container" class="text-center">
@@ -30,8 +30,8 @@
     });
 </script>{/literal}
 {if $ocaOrdersEnabled}
-    <div class="panel">
-        <div class="panel-heading">
+    <div class="panel card">
+        <div class="panel-heading card-header">
             <img src="../modules/{$moduleName|trim|escape:'htmlall':'UTF-8'}/logo.gif" alt="logo" /> {l s='OCA ePak Orders' mod='ocaepak'}
         </div>
         {if $ocaGuiHeader}

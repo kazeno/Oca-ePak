@@ -47,7 +47,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '2.0';
+        $this->version = '2.1';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.7');
@@ -1109,7 +1109,8 @@ class OcaEpak extends CarrierModule
 
         );
         $helper = new HelperForm();
-        $helper->module = $this;
+        $helper->base_folder = _PS_ADMIN_DIR_.'/themes/default/template/helpers/form/'; //PS 1.7.7+ bug
+        //$helper->module = $this;
         $helper->title = $this->displayName;
         $helper->name_controller = $this->name;
         $helper->identifier = $this->identifier;
@@ -1180,11 +1181,12 @@ class OcaEpak extends CarrierModule
         $op = OcaEpakOperative::getByFieldId('carrier_reference', $carrier->id_reference);
         if (!$op)
             return NULL;
-        $address = new Address($params['cart']->id_address_delivery);
-        $carrier = new Carrier($params['cart']->id_carrier);
+        $address = new Address($order->id_address_delivery);
+        $carrier = new Carrier($order->id_carrier);
         $customer = new Customer($order->id_customer);
+        $cart = new Cart($order->id_cart);
         if (in_array($op->type, array('PaS', 'SaS'))) {
-            $relayId = OcaEpakRelay::getByCartId($params['cart']->id)->distribution_center_id;
+            $relayId = OcaEpakRelay::getByCartId($order->id_cart)->distribution_center_id;
         } else
             $relayId = null;
 
@@ -1215,7 +1217,7 @@ class OcaEpak extends CarrierModule
                 $this->guiAddToHeader(Tools::displayError($this->l('OCA Order cancel error').': '.$e->getMessage()));
             }
         } elseif (Tools::isSubmit('oca-order-submit')) {
-            $cartData = OcaCarrierTools::getCartPhysicalData($params['cart'], $carrier->id, Configuration::get(self::CONFIG_PREFIX.'DEFWEIGHT'), Configuration::get(self::CONFIG_PREFIX.'DEFVOLUME'), self::PADDING);
+            $cartData = OcaCarrierTools::getCartPhysicalData($cart, $carrier->id, Configuration::get(self::CONFIG_PREFIX.'DEFWEIGHT'), Configuration::get(self::CONFIG_PREFIX.'DEFVOLUME'), self::PADDING);
             if ($preOrder = $this->getValidateOcaForm($cartData)) {
                 $xmlRetiro = OcaEpakOrder::generateOrderXml(array_merge($preOrder, array(
                     'address' => $address,
