@@ -9,6 +9,10 @@
 
 class AdminOcaEpakController extends ModuleAdminController
 {
+    /**
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
     public function ajaxProcessCarrier()
     {
         $order = new Order((int)Tools::getValue('order_id'));
@@ -17,8 +21,9 @@ class AdminOcaEpakController extends ModuleAdminController
         $currency = new Currency($cart->id_currency);
         $carrier = new Carrier($cart->id_carrier);
         $op = OcaEpakOperative::getByFieldId('carrier_reference', $carrier->id_reference);
-        if (!$op)
-            return NULL;
+        if (!$op) {
+            return null;
+        }
         include_once _PS_MODULE_DIR_."{$this->module->name}/classes/OcaCarrierTools.php";
         //$customer = new Customer($order->id_customer);
         $cartData = OcaCarrierTools::getCartPhysicalData($cart, $cart->id_carrier, Configuration::get(OcaEpak::CONFIG_PREFIX.'DEFWEIGHT'), Configuration::get(OcaEpak::CONFIG_PREFIX.'DEFVOLUME'), OcaEpak::PADDING);

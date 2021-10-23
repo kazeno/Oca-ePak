@@ -50,10 +50,18 @@ class OcaEpakOrder extends ObjectModel
         )
     );
 
+    /**
+     * @throws PrestaShopException
+     * @throws PrestaShopDatabaseException
+     */
     public static function getByFieldId($field, $id_field)
     {
-        if (!in_array($field, array('id_order', 'reference', 'tracking', 'operation_code', /*'status'*/)))
+        if (!in_array(
+                $field,
+                array('id_order', 'reference', 'tracking', 'operation_code', /*'status'*/)
+        )) {
             return false;
+        }
         $query = OcaCarrierTools::interpolateSql(
             "SELECT `{ID}`
             FROM `{TABLE}`
@@ -85,11 +93,15 @@ class OcaEpakOrder extends ObjectModel
         foreach ($fields as $conf) {
             $config[$conf] = (Configuration::get(OcaEpak::CONFIG_PREFIX.'PICKUPS_ENABLED') || in_array($conf, $admissionFields)) ? self::cleanOcaAttribute(Configuration::get(OcaEpak::CONFIG_PREFIX.Tools::strtoupper($conf)), constant('self::OCA_'.Tools::strtoupper($conf).'_LENGTH')) : '';
         }
-        $config['timeslot'] = in_array($data['operative']->type, array('PaP', 'PaS')) ? Configuration::get(OcaEpak::CONFIG_PREFIX.'TIMESLOT') : '1';
+        $config['timeslot'] = (
+            in_array($data['operative']->type, array('PaP', 'PaS'))
+            ? Configuration::get(OcaEpak::CONFIG_PREFIX.'TIMESLOT')
+            : '1'
+        );
         $address = array();
-        foreach (array(
-                'street', 'number', 'floor', 'apartment', 'locality', 'province', 'observations'
-            ) as $conf) {
+        foreach (
+            array('street', 'number', 'floor', 'apartment', 'locality', 'province', 'observations') as $conf
+        ) {
             $address[$conf] = self::cleanOcaAttribute($data[$conf], constant('self::OCA_'.Tools::strtoupper($conf).'_LENGTH'));
         }
         $address['firstname'] = self::cleanOcaAttribute($data['customer']->firstname, self::OCA_NAME_LENGTH);
@@ -129,16 +141,19 @@ class OcaEpakOrder extends ObjectModel
             $clean = trim(htmlspecialchars(iconv('utf-8','ascii//TRANSLIT', str_replace('"', '', $text))));
         }
 
-        if ($fromEnd)
+        if ($fromEnd) {
             return Tools::strlen($clean) > $maxLength ? Tools::substr($clean, -$maxLength) : $clean;
-        else
+        } else {
             return Tools::strlen($clean) > $maxLength ? Tools::substr($clean, 0, $maxLength) : $clean;
+        }
     }
 
     /**
      * @param $address Address
      *
      * @return array
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
      */
     public static function parseOcaAddress($address)
     {
@@ -165,10 +180,11 @@ class OcaEpakOrder extends ObjectModel
                 'quinto' => 5,
                 'sexto' => 6
             );
-            if (!Tools::strlen($matches[2]))
+            if (!Tools::strlen($matches[2])) {
                 $ocaAddress['floor'] = $floors[$matches[1]];
-            else
+            } else {
                 $ocaAddress['floor'] = $matches[2];
+            }
             $remainingAddress = str_replace($matches[0], '', $remainingAddress);
         }
         if (preg_match('/,?\s+(departamento|depto|dpto|dto)\.?\s*((\d+)(o|º|°|ª)?|"?[a-z]"?)/i', trim($remainingAddress), $matches)) {
@@ -180,8 +196,9 @@ class OcaEpakOrder extends ObjectModel
         if ($address->id_state) {
             $state = new State($address->id_state);
             $stateCode = trim($state->iso_code);
-            if (Tools::strlen($stateCode) === 1)
-                $fullPostCode = $stateCode.OcaCarrierTools::cleanPostcode($address->postcode);
+            if (Tools::strlen($stateCode) === 1) {
+                $fullPostCode = $stateCode . OcaCarrierTools::cleanPostcode($address->postcode);
+            }
         }
         $json = self::geocodeAddress($shortAddress, $fullPostCode);
         if (!is_array($json) || !count($json['results']) || !isset($json['results'][0]['address_components'])) {
@@ -190,8 +207,9 @@ class OcaEpakOrder extends ObjectModel
 
         if (count($json['results']) && isset($json['results'][0]) && isset($json['results'][0]['address_components'])) {
             foreach ($json['results'][0]['address_components'] as $component) {
-                if (!isset($component['types']) || !count($component['types']))
+                if (!isset($component['types']) || !count($component['types'])) {
                     continue;
+                }
                 switch ($component['types'][0]) {
                     case 'street_number':
                         $ocaAddress['geocoded number'] = $component['long_name'];
@@ -210,8 +228,9 @@ class OcaEpakOrder extends ObjectModel
                         //$ocaAddress['geocoded'] = true;
                         break;
                     case 'country':
-                        if (trim($component['long_name']) != 'Argentina')
+                        if (trim($component['long_name']) != 'Argentina') {
                             $ocaAddress['geocoded country'] = $component['long_name'];
+                        }
                         break;
                 }
             }
@@ -223,36 +242,62 @@ class OcaEpakOrder extends ObjectModel
                     'geocoded' => true
                 );
             }
-        } else
-            $ocaAddress['geocoded'] = false; 
+        } else {
+            $ocaAddress['geocoded'] = false;
+        }
         $matches = array();
-        if (preg_match('/^((\d*)(\s*[-\/]\s*)?([^0-9,]+)?)(\d+)?\s*,?-?\s*(.*)?/', trim($remainingAddress), $matches)) {
+        if (preg_match(
+            '/^((\d*)(\s*[-\/]\s*)?([^0-9,]+)?)(\d+)?\s*,?-?\s*(.*)?/',
+            trim($remainingAddress),
+            $matches)
+        ) {
             $ocaAddress['street'] = Tools::strlen(trim($matches[3])) ? $matches[2] : $matches[1];
             $ocaAddress['number'] = Tools::strlen(trim($matches[5])) ? trim($matches[5]) : '0';
             $ocaAddress['remainder'] = (isset($matches[6]) && Tools::strlen(trim($matches[6]))) ? $matches[6] : '';
-        } else
+        } else {
             $ocaAddress['remainder'] = $remainingAddress;
-        if (Tools::strlen($ocaAddress['remainder']) && preg_match('/^((\d*)(o|mo|no|vo|to|do|er|ero|ro|º|°|ª)?\.?(\z|\s+))?(\d*"?[a-z]?"?(\z|\s+))?(.*)?/i', trim($ocaAddress['remainder']), $matches)) {
-            if (!Tools::strlen($ocaAddress['floor']) && Tools::strlen(trim($matches[2])))
+        }
+        if (
+            Tools::strlen($ocaAddress['remainder'])
+            && preg_match(
+                '/^((\d*)(o|mo|no|vo|to|do|er|ero|ro|º|°|ª)?\.?(\z|\s+))?(\d*"?[a-z]?"?(\z|\s+))?(.*)?/i',
+                trim($ocaAddress['remainder']), $matches
+            )
+        ) {
+            if (!Tools::strlen($ocaAddress['floor']) && Tools::strlen(trim($matches[2]))) {
                 $ocaAddress['floor'] = $matches[2];
-            if (!Tools::strlen($ocaAddress['apartment']) && Tools::strlen(trim($matches[5])))
+            }
+            if (!Tools::strlen($ocaAddress['apartment']) && Tools::strlen(trim($matches[5]))) {
                 $ocaAddress['apartment'] = $matches[5];
-            if (Tools::strlen(trim($matches[5])) || Tools::strlen(trim($matches[2])))
+            }
+            if (Tools::strlen(trim($matches[5])) || Tools::strlen(trim($matches[2]))) {
                 $ocaAddress['remainder'] = (isset($matches[7]) && Tools::strlen(trim($matches[7]))) ? $matches[7] : '';
+            }
         }
 
-        if (isset($ocaAddress['street']) && isset($ocaAddress['geocoded street']))
-            $ocaAddress['discrepancy street'] = self::stringDistance($ocaAddress['street'], $ocaAddress['geocoded street']);
-        if (isset($ocaAddress['number']) && isset($ocaAddress['geocoded number']))
-            $ocaAddress['discrepancy number'] = self::stringDistance($ocaAddress['number'], $ocaAddress['geocoded number']);
-        if (isset($ocaAddress['city']))
+        if (isset($ocaAddress['street']) && isset($ocaAddress['geocoded street'])) {
+            $ocaAddress['discrepancy street'] = self::stringDistance($ocaAddress['street'],
+                $ocaAddress['geocoded street']);
+        }
+        if (isset($ocaAddress['number']) && isset($ocaAddress['geocoded number'])) {
+            $ocaAddress['discrepancy number'] = self::stringDistance($ocaAddress['number'],
+                $ocaAddress['geocoded number']);
+        }
+        if (isset($ocaAddress['city'])) {
             $ocaAddress['discrepancy city'] = self::stringDistance($address->city, $ocaAddress['geocoded city']);
+        }
 
-        if ((isset($ocaAddress['discrepancy number']) && $ocaAddress['discrepancy number']) || (isset($ocaAddress['discrepancy street']) && ($ocaAddress['discrepancy street'] > 12)) || (isset($ocaAddress['discrepancy city']) && ($ocaAddress['discrepancy city'] > 4)) || Tools::strlen(trim($ocaAddress['remainder']))) {
+        if (
+            (isset($ocaAddress['discrepancy number']) && $ocaAddress['discrepancy number'])
+            || (isset($ocaAddress['discrepancy street']) && ($ocaAddress['discrepancy street'] > 12))
+            || (isset($ocaAddress['discrepancy city']) && ($ocaAddress['discrepancy city'] > 4))
+            || Tools::strlen(trim($ocaAddress['remainder']))
+        ) {
             $ocaAddress['discrepancy'] = true;
             $ocaAddress['other'] = (Tools::strlen(trim($ocaAddress['remainder'])) ? trim($ocaAddress['remainder']).' ' : '').$ocaAddress['other'];
-        } else
+        } else {
             $ocaAddress['discrepancy'] = false;
+        }
         $ocaAddress['city'] = $address->city;
         $ocaAddress['state'] = $address->id_state > 0 ? State::getNameById($address->id_state) : '';
         
@@ -275,16 +320,25 @@ class OcaEpakOrder extends ObjectModel
             }
             fclose($fp);
             $response = explode("\r\n\r\n", trim($result));
-            if ($data = @Tools::jsonDecode($response[1], true))
+            if ($data = @Tools::jsonDecode($response[1], true)) {
                 return $data;
-            else
+            } else {
                 return $response[1];
-        } else return FALSE;
+            }
+        } else {
+            return false;
+        }
     }
     
 
     public static function stringDistance($str1, $str2)
     {
-        return levenshtein(trim(Tools::strtolower(Tools::replaceAccentedChars($str1))), trim(Tools::strtolower(Tools::replaceAccentedChars($str2))), 1, 3, 4);
+        return levenshtein(
+            trim(Tools::strtolower(Tools::replaceAccentedChars($str1))),
+            trim(Tools::strtolower(Tools::replaceAccentedChars($str2))),
+            1,
+            3,
+            4
+        );
     }
 }

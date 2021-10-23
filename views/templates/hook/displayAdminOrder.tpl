@@ -2,16 +2,16 @@
  * Oca e-Pak Module for Prestashop  https://github.com/kazeno/Oca-ePak
  * @author    Rinku Kazeno
  * @license   MIT License  https://opensource.org/licenses/mit-license.php
- *  @file-version 1.4
+ *  @file-version 2.1
  *}
 
 <div class="panel card">
     <div class="panel-heading card-header">
-        <img src="../modules/{$moduleName|trim|escape:'htmlall':'UTF-8'}/logo.gif" alt="logo" /> {l s='OCA ePak Information' mod='ocaepak'}
+        <img src="{$base_url}/modules/{$moduleName|trim|escape:'htmlall':'UTF-8'}/logo.gif" alt="logo" /> {l s='OCA ePak Information' mod='ocaepak'}
     </div>
     <div id="oca-ajax-container" class="text-center">
         <h2>{l s='Loading' mod='ocaepak'}...</h2>
-        <img src="../img/loadingAnimation.gif" alt="{l s='Loading' mod='ocaepak'}">
+        <img src="{$base_url}/img/loadingAnimation.gif" alt="{l s='Loading' mod='ocaepak'}">
     </div>
 </div>
 <script>{literal}
@@ -32,7 +32,7 @@
 {if $ocaOrdersEnabled}
     <div class="panel card">
         <div class="panel-heading card-header">
-            <img src="../modules/{$moduleName|trim|escape:'htmlall':'UTF-8'}/logo.gif" alt="logo" /> {l s='OCA ePak Orders' mod='ocaepak'}
+            <img src="{$base_url}/modules/{$moduleName|trim|escape:'htmlall':'UTF-8'}/logo.gif" alt="logo" /> {l s='OCA ePak Orders' mod='ocaepak'}
         </div>
         {if $ocaGuiHeader}
             <div class="form-group">
@@ -56,7 +56,7 @@
                     <iframe src="{$stickerUrl|escape:'htmlall':'UTF-8'}" id="oca-sticker" frameborder="0" style="margin: 18px; width: 0; height: 0; max-width: 100%;"></iframe>
                     {literal}<script>
                         $('#oca-print-button, #oca-cancel-button').hide();
-                        $('#oca-sticker').load(function () {
+                        $('#oca-sticker').on('load', function () {
                             var $tables = $('#etiquetas > table', $(this).contents());
                             if ($tables.length > 0) {
                                 $(this).height($(this).contents().height());

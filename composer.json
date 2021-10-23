@@ -1,0 +1,14 @@
+{
+  "name": "kazeno/oca-epak",
+  "description": "Oca ePak module for Prestashop",
+  "minimum-stability": "stable",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Rinku Kazeno"
+    }
+  ],
+  "require": {
+    "php": ">=5.6"
+  }
+}

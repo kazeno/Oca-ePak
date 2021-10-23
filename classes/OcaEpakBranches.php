@@ -11,6 +11,9 @@ class OcaEpakBranches
 {
     public static $expiry = 24; //hours
 
+    /**
+     * @throws PrestaShopDatabaseException
+     */
     public static function retrieve($postcode)
     {
         $query = OcaCarrierTools::interpolateSql(
@@ -25,8 +28,9 @@ class OcaEpakBranches
             )
         );
         $result = Db::getInstance()->executeS($query);
-        if (!is_array($result))
+        if (!is_array($result)) {
             return array();
+        }
         $branches = array();
         foreach ($result as $branch) {
             $branches[$branch['IdCentroImposicion']] = $branch;

@@ -35,18 +35,25 @@ class OcaEpakOperative extends ObjectModel
         )
     );
 
+    /**
+     * @throws PrestaShopException
+     * @throws Exception
+     */
     public function validateFields($die = true, $error_return = false)
     {
         $message = parent::validateFields($die, TRUE);
-        if ($message !== TRUE)
+        if ($message !== TRUE) {
             return $error_return ? $message : false;
-        $message = (!preg_match('/^[\d]*[\.]?[\d]*%?$/', $this->addfee) OR $this->addfee == '%')
+        }
+        $message = (
+            (!preg_match('/^[\d]*[\.]?[\d]*%?$/', $this->addfee) OR $this->addfee == '%')
             ? Translate::getModuleTranslation('OcaEpak','Optional fee format is incorrect. Should be either an amount, such as 7.50, or a percentage, such as 6.99%','OcaEpak')
-        : TRUE;
-        if ($message !== true)
-        {
-            if ($die)
+            : TRUE
+        );
+        if ($message !== true) {
+            if ($die) {
                 throw new PrestaShopException($message);
+            }
             return $error_return ? $message : false;
         }
 
@@ -71,8 +78,7 @@ class OcaEpakOperative extends ObjectModel
         $carrier->external_module_name = OcaEpak::MODULE_NAME;
         $carrier->need_range = true;
         $languages = Language::getLanguages(true);
-        foreach ($languages as $language)
-        {
+        foreach ($languages as $language) {
             $carrier->delay[(int)$language['id_lang']] = $this->description;
         }
         $preGroups = Group::getGroups(Configuration::get('PS_LANG_DEFAULT'));
@@ -86,8 +92,9 @@ class OcaEpakOperative extends ObjectModel
         $rangeWeight = new RangeWeight();
         $rangeWeight->delimiter1 = '0';
         $rangeWeight->delimiter2 = '10000';
-        if (!$carrier->add())
+        if (!$carrier->add()) {
             return false;
+        }
         $carrier = new Carrier($carrier->id);   //reload carrier to get reference
         return (
             (method_exists('Carrier', 'setGroups') ? $carrier->setGroups($groups) : $this->setCarrierGroups($carrier, $groups)) AND
@@ -105,8 +112,7 @@ class OcaEpakOperative extends ObjectModel
     {
         $carrier = Carrier::getCarrierByReference($this->carrier_reference);
         $languages = Language::getLanguages(true);
-        foreach ($languages as $language)
-        {
+        foreach ($languages as $language) {
             $carrier->delay[(int)$language['id_lang']] = $this->description;
         }
         return (
@@ -126,11 +132,18 @@ class OcaEpakOperative extends ObjectModel
     }
 
 
-
+    /**
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
     public static function getByFieldId($field, $id_field)
     {
-        if (!in_array($field, array('carrier_reference', 'reference', 'description', /*'addfee', 'id_shop'*/)))
+        if (!in_array(
+            $field,
+            array('carrier_reference', 'reference', 'description', /*'addfee', 'id_shop'*/)
+        )) {
             return false;
+        }
         $query = OcaCarrierTools::interpolateSql(
             "SELECT `{ID}`
             FROM `{TABLE}`
@@ -147,10 +160,21 @@ class OcaEpakOperative extends ObjectModel
         return $id ? new OcaEpakOperative($id) : false;
     }
 
+    /**
+     * @throws PrestaShopException
+     * @throws PrestaShopDatabaseException
+     */
     public static function getOperativeIds($returnObjects=false, $filter_column=NULL, $filter_value=NULL)
     {
-        if (!is_null($filter_column) && !in_array($filter_column, array(OcaEpak::OPERATIVES_ID, 'carrier_reference', 'description', 'addfee', 'id_shop', 'type')))
+        if (
+            !is_null($filter_column)
+            && !in_array(
+                $filter_column,
+                array(OcaEpak::OPERATIVES_ID, 'carrier_reference', 'description', 'addfee', 'id_shop', 'type')
+            )
+        ) {
             return false;
+        }
         if ($filter_column) {
             $query = OcaCarrierTools::interpolateSql(
                 "SELECT `{ID}`
@@ -182,6 +206,9 @@ class OcaEpakOperative extends ObjectModel
         return $ops;
     }
 
+    /**
+     * @throws PrestaShopDatabaseException
+     */
     public static function getRelayedCarrierIds($returnObjects=false)
     {
         $query = OcaCarrierTools::interpolateSql(
@@ -230,13 +257,16 @@ class OcaEpakOperative extends ObjectModel
      */
     protected function setCarrierGroups($carrier, $groups, $delete = true)
     {
-        if ($delete)
-            Db::getInstance()->execute('DELETE FROM '.pSQL(_DB_PREFIX_).'carrier_group WHERE id_carrier = '.(int)$carrier->id);
-        if (!is_array($groups) || !count($groups))
+        if ($delete) {
+            Db::getInstance()->execute('DELETE FROM ' . pSQL(_DB_PREFIX_) . 'carrier_group WHERE id_carrier = ' . (int)$carrier->id);
+        }
+        if (!is_array($groups) || !count($groups)) {
             return true;
+        }
         $sql = 'INSERT INTO '.pSQL(_DB_PREFIX_).'carrier_group (id_carrier, id_group) VALUES ';
-        foreach ($groups as $id_group)
-            $sql .= '('.(int)$carrier->id.', '.(int)$id_group.'),';
+        foreach ($groups as $id_group) {
+            $sql .= '(' . (int)$carrier->id . ', ' . (int)$id_group . '),';
+        }
 
         return Db::getInstance()->execute(rtrim($sql, ','));
     }
