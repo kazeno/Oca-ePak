@@ -28,5 +28,9 @@ MIT License  https://opensource.org/licenses/mit-license.php
 
 ## Changelog
 
+### 2.1
+* Fixed compatibility with Prestahop 1.7.6+
+* Code cleanup
+
 ### 2.0
 * First Open-Source release
