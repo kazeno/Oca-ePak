@@ -4,7 +4,7 @@
  *
  * @author    Rinku Kazeno
  * @license   MIT License  https://opensource.org/licenses/mit-license.php
- * @file-version 1.5
+ * @file-version 2.1.1
  */
 
 class OcaEpakOrder extends ObjectModel
@@ -159,7 +159,7 @@ class OcaEpakOrder extends ObjectModel
     {
         $remainingAddress =  trim(str_replace(array("\n", "\r"), ' ', trim($address->address1.' '.$address->address2)), "\t\n\r");
         $shortAddress = trim($address->address1).' '.trim($address->city);
-        $mediumAddress = trim($address->address1).', '.(Tools::strlen(trim($address->address1)) ? trim($address->address1).', ' : '').trim($address->city);
+        $mediumAddress = trim($address->address1).', '.(Tools::strlen(trim($address->address1)) ? trim($address->address1).', ' : '').trim($address->city); //@todo: bug? not address2?
         $ocaAddress = array(
             'floor' => '',
             'apartment' => '',
@@ -320,7 +320,7 @@ class OcaEpakOrder extends ObjectModel
             }
             fclose($fp);
             $response = explode("\r\n\r\n", trim($result));
-            if ($data = @Tools::jsonDecode($response[1], true)) {
+            if ($data = @json_decode($response[1], true)) {
                 return $data;
             } else {
                 return $response[1];

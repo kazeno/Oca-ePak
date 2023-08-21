@@ -4,8 +4,8 @@
  *
  * @author    Rinku Kazeno
  * @license   MIT License  https://opensource.org/licenses/mit-license.php
- * @version 2.1
- * @file-version 2.1
+ * @version 2.1.1
+ * @file-version 2.1.1
  */
 
 if (!defined( '_PS_VERSION_')) {
@@ -50,7 +50,7 @@ class OcaEpak extends CarrierModule
     {
         $this->name = 'ocaepak';            //DON'T CHANGE!!
         $this->tab = 'shipping_logistics';
-        $this->version = '2.1';
+        $this->version = '2.1.1';
         $this->author = 'R. Kazeno';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.5', 'max' => '1.7');
@@ -1030,7 +1030,7 @@ class OcaEpak extends CarrierModule
                 $error .= $this->displayError($this->l('Invalid pickup timeslot'));
             }
         }
-        $boxes = Tools::jsonDecode(Tools::getValue('boxes'), true);
+        $boxes = json_decode(Tools::getValue('boxes'), true);
         foreach ($boxes as $box) {
             if (($box['l']+$box['d']+$box['h']+$box['xw']) > 0) {
                 if (
@@ -1072,7 +1072,7 @@ class OcaEpak extends CarrierModule
         }
         Configuration::updateValue(self::CONFIG_PREFIX . 'ADMISSIONS_ENABLED', Tools::getValue('oca_admissions'));
         Configuration::updateValue(self::CONFIG_PREFIX . 'PICKUPS_ENABLED', Tools::getValue('oca_pickups'));
-        Configuration::updateValue(self::CONFIG_PREFIX.'BOXES', Tools::jsonEncode($this->boxes));
+        Configuration::updateValue(self::CONFIG_PREFIX.'BOXES', json_encode($this->boxes));
         $this->guiAddToHeader($this->displayConfirmation($this->l('Configuration saved')));
         return true;
     }
@@ -1086,7 +1086,7 @@ class OcaEpak extends CarrierModule
     {
         $this->context->controller->addJqueryUI('ui.datepicker');
         $this->context->smarty->assign(array(
-            'oca_boxes' => Tools::jsonDecode(Configuration::get(self::CONFIG_PREFIX.'BOXES'), true),
+            'oca_boxes' => json_decode(Configuration::get(self::CONFIG_PREFIX.'BOXES'), true),
             'oca_order_address' => $address,
             'oca_geocoded' => $parsedAddress['geocoded']
         ));
@@ -1228,7 +1228,7 @@ class OcaEpak extends CarrierModule
                 'date' => str_replace('-', '', Tools::getValue('oca-date')),
                 'boxes' => array()
             );
-            $boxes = Tools::jsonDecode(Configuration::get(self::CONFIG_PREFIX.'BOXES'), true);
+            $boxes = json_decode(Configuration::get(self::CONFIG_PREFIX.'BOXES'), true);
             $boxVolume = 0;
             foreach ($boxes as $ind => $box) {
                 if (!is_numeric(Tools::getValue('oca-box-q-'.$ind, 0))) {
@@ -1281,6 +1281,13 @@ class OcaEpak extends CarrierModule
         $carrier = new Carrier($order->id_carrier);
         $customer = new Customer($order->id_customer);
         $cart = new Cart($order->id_cart);
+        $orderCarrierId = $order->getIdOrderCarrier();
+        if ($orderCarrierId) {
+            $orderCarrier = new OrderCarrier($orderCarrierId);
+            $shippingNumber = $orderCarrier->tracking_number;
+        } else {
+            $shippingNumber = '';
+        }
         if (in_array($op->type, array('PaS', 'SaS'))) {
             $relayId = OcaEpakRelay::getByCartId($order->id_cart)->distribution_center_id;
         } else {
@@ -1356,18 +1363,12 @@ class OcaEpak extends CarrierModule
                     $ocaOrder->tracking = (string)$data->DetalleIngresos->NumeroEnvio;
                     $ocaOrder->operation_code = (int)$data->Resumen->CodigoOperacion;
                     $ocaOrder->save();
-                    if (!$order->shipping_number && $ocaOrder->tracking) {
-                        $id_order_carrier = Db::getInstance()->getValue('
-						    SELECT `id_order_carrier`
-						    FROM `'._DB_PREFIX_.'order_carrier`
-						    WHERE `id_order` = '.(int)$order->id
-                        );
-                        if ($id_order_carrier) {
-                            $_GET['tracking_number'] = $ocaOrder->tracking;
-                            $_GET['submitShippingNumber'] = 1;
-                            $_GET['id_order_carrier'] = $id_order_carrier;
-                            $this->context->controller->postProcess();
-                        }
+                    if (
+                        !$shippingNumber
+                        && $ocaOrder->tracking
+                    ) {
+                        $shippingNumber = $ocaOrder->tracking;
+                        $order->setWsShippingNumber($shippingNumber);
                     }
                     unset($ocaOrder);
                 } catch (Exception $e) {
@@ -1429,7 +1430,8 @@ class OcaEpak extends CarrierModule
                     Configuration::get(self::CONFIG_PREFIX.'PICKUPS_ENABLED')
                     && in_array($op->type, array('PaP', 'PaS'))
                 )
-            ) && !$order->shipping_number
+            )
+            && !$shippingNumber
         ) {
             $parsedAddress = OcaEpakOrder::parseOcaAddress($address);
             if (self::LOG_DEBUG && $parsedAddress['discrepancy']) {
@@ -1453,6 +1455,9 @@ class OcaEpak extends CarrierModule
         return $template;
     }
 
+    /**
+     * @throws PrestaShopDatabaseException
+     */
     public function hookDisplayHeader($params)
     {
         if (_PS_VERSION_ < 1.7) {
@@ -1565,7 +1570,7 @@ class OcaEpak extends CarrierModule
                 }
                 $this->context->smarty->assign(  array(
                     'ocaepak_relays' => $branches,
-                    'relayed_carriers' => Tools::jsonEncode($carrierIds),
+                    'relayed_carriers' => json_encode($carrierIds),
                     'ocaepak_name' => $this->name,
                     'gmaps_api_key' => Configuration::get(self::CONFIG_PREFIX.'GMAPS_API_KEY'),
                     'ocaepak_branch_sel_type' => Tools::strlen(Configuration::get(self::CONFIG_PREFIX.'BRANCH_SEL_TYPE')) ? Configuration::get(self::CONFIG_PREFIX.'BRANCH_SEL_TYPE') : '0',
@@ -1583,6 +1588,7 @@ class OcaEpak extends CarrierModule
     /**
      * Show pickup options
      * @param array $params ['address']
+     * @throws PrestaShopDatabaseException
      */
     public function hookDisplayCarrierList($params)
     {
@@ -1658,7 +1664,7 @@ class OcaEpak extends CarrierModule
                             }
                             $this->context->smarty->assign(array(
                                 'ocaepak_relays' => $branches,
-                                'relayed_carriers' => Tools::jsonEncode($carrierIds),
+                                'relayed_carriers' => json_encode($carrierIds),
                                 'ocaepak_name' => $this->name,
                                 'gmaps_api_key' => Configuration::get(self::CONFIG_PREFIX.'GMAPS_API_KEY'),
                                 'force_ssl' => Configuration::get('PS_SSL_ENABLED') || Configuration::get('PS_SSL_ENABLED_EVERYWHERE')
@@ -1684,6 +1690,7 @@ class OcaEpak extends CarrierModule
     /**
      * @param array $params [carrier, cookie, cart, altern]
      * @return false|string|null
+     * @throws PrestaShopDatabaseException
      */
     public function hookDisplayCarrierExtraContent($params)
     {
@@ -1722,6 +1729,10 @@ class OcaEpak extends CarrierModule
         return NULL;
     }
 
+    /**
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
     public function hookDisplayOrderDetail($params)
     {
         $carrier = new Carrier($params['order']->id_carrier);
@@ -1753,6 +1764,11 @@ class OcaEpak extends CarrierModule
 
 
     /**
+     * @param $cart
+     * @param $shipping_cost
+     * @return false|float
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
      * @throws \MaxMind\Db\Reader\InvalidDatabaseException
      */
     public function getOrderShippingCost($cart, $shipping_cost)
@@ -1901,6 +1917,10 @@ class OcaEpak extends CarrierModule
     }
 
     /**
+     * @param $params
+     * @return false|float
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
      * @throws \MaxMind\Db\Reader\InvalidDatabaseException
      */
     public function getOrderShippingCostExternal($params)
@@ -1932,7 +1952,14 @@ class OcaEpak extends CarrierModule
             $data = $this->executeWebservice('GetCentrosImposicionConServicios');
             foreach ($data as $table) {
                 if (trim((string)$table->IdCentroImposicion) === (string)$id_branch) {
-                    return Tools::jsonDecode(str_replace('{}', '""', Tools::jsonEncode((array)$table)), true);
+                    return json_decode(
+                        str_replace(
+                            '{}',
+                            '""',
+                            json_encode((array)$table)
+                        ),
+                        true
+                    );
                 }
             }
         } catch (Exception $e) {
@@ -1954,17 +1981,24 @@ class OcaEpak extends CarrierModule
                 $data = array($data);
             }
             foreach ($data as $table) {
-                $rel = Tools::jsonDecode(str_replace('{}', '""', Tools::jsonEncode((array)$table)), TRUE);
+                $rel = json_decode(
+                    str_replace(
+                        '{}',
+                        '""',
+                        json_encode((array)$table)
+                    ),
+                    true
+                );
                 $servs = $rel['Servicios']['Servicio'];
                 if (isset($servs['IdTipoServicio'])) {
                     if (trim((string)$servs['IdTipoServicio']) === (string)$serviceId) {
-                        $relays[$rel['IdCentroImposicion']] = Tools::jsonDecode(
+                        $relays[$rel['IdCentroImposicion']] = json_decode(
                             str_replace(
                                 array('{}', '  ', '\t', "\t"),
                                 array('""', '', '', ''),
-                                Tools::jsonEncode((array)$table)
+                                json_encode((array)$table)
                             ),
-                            TRUE
+                            true
                         );
                     }
                 } else {
@@ -1973,13 +2007,13 @@ class OcaEpak extends CarrierModule
                             isset($serv['IdTipoServicio'])
                             && trim((string)$serv['IdTipoServicio']) === (string)$serviceId
                         ) {
-                            $relays[$rel['IdCentroImposicion']] = Tools::jsonDecode(
+                            $relays[$rel['IdCentroImposicion']] = json_decode(
                                 str_replace(
                                     array('{}', '  ', '\t', "\t"),
                                     array('""', '', '', ''),
-                                    Tools::jsonEncode((array)$table)
+                                    json_encode((array)$table)
                                 ),
-                                TRUE
+                                true
                             );
                             break;
                         }

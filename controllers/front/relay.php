@@ -4,8 +4,7 @@
  *
  * @author    Rinku Kazeno
  * @license   MIT License  https://opensource.org/licenses/mit-license.php
- * @version 2.0
- *  @file-version 0.3
+ * @file-version 2.1.1
  */
 
 class OcaepakRelayModuleFrontController extends ModuleFrontController
@@ -29,7 +28,7 @@ class OcaepakRelayModuleFrontController extends ModuleFrontController
         $relay->auto = (int)Tools::getValue('auto');
         $relay->save();
 
-        echo Tools::jsonEncode(array('status' => 'Success'));
+        echo json_encode(array('status' => 'Success'));
         exit;
     }
 }
