@@ -1,4 +1,4 @@
-# Módulo de OCA e-Pak para Prestashop versiones 1.6 - 1.7
+# Módulo de OCA e-Pak para Prestashop versiones 1.6, 1.7, 8.0, 8.1
 
 ## About
 
@@ -11,9 +11,9 @@ Si lo llegaste a comprar en cualquier otro lado que no haya sido Prestashop Addo
 
 ## Compatibility
 
-Este modulo es compatible con las versiones 1.6 y 1.7 de Prestashop.
+Este modulo es compatible con las versiones 1.6, 1.7, 8.0 y 8.1 de Prestashop.
 
-Las versiones 8.0 y 8.1 de Prestashop tienen soporte parcial. Si tú las estás usando y notas algún problema, por favor repórtalo con instrucciones claras de como replicarlo (de preferencia con un video de captura) así como con su log de errores correspondiente.
+Las versiones 8.0 y 8.1 de Prestashop pueden presentar detalles visuales y bugs menores. Si tú las estás usando y notas algún problema, por favor repórtalo con instrucciones claras de como replicarlo (de preferencia con un video de captura) así como con su log de errores correspondiente.
 
 En general no es compatible con módulos de One Page Checkout ya que todos cargan los elementos del checkout de maneras diferentes. Si requieres compatibilidad con el tuyo por favor contacta a su autor correspondiente.
 
