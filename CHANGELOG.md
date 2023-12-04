@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.2] - 2023-12-04
+
+### Changed
+
+- code readability improvements
+
+### Fixed
+
+Prestashop 8.0+ compatibility:
+- removed  Validate::isPasswd
+- changed ajax-tab.php calls to their respective controllers
+- removed $smarty.get.token calls in templates
+- removed $this->ps_versions_compliancy max version limitation so it can be iinstalled now
+
+
 ## [2.1.1] - 2023-08-21
 
 ### Added

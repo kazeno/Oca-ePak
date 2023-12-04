@@ -4,7 +4,7 @@
  *
  * @author    Rinku Kazeno
  * @license   MIT License  https://opensource.org/licenses/mit-license.php
- * @file-version 1.3
+ * @file-version 2.1.2
  */
 
 class AdminOcaEpakController extends ModuleAdminController
@@ -24,9 +24,16 @@ class AdminOcaEpakController extends ModuleAdminController
         if (!$op) {
             return null;
         }
+
         include_once _PS_MODULE_DIR_."{$this->module->name}/classes/OcaCarrierTools.php";
-        //$customer = new Customer($order->id_customer);
-        $cartData = OcaCarrierTools::getCartPhysicalData($cart, $cart->id_carrier, Configuration::get(OcaEpak::CONFIG_PREFIX.'DEFWEIGHT'), Configuration::get(OcaEpak::CONFIG_PREFIX.'DEFVOLUME'), OcaEpak::PADDING);
+
+        $cartData = OcaCarrierTools::getCartPhysicalData(
+            $cart,
+            $cart->id_carrier,
+            Configuration::get(OcaEpak::CONFIG_PREFIX.'DEFWEIGHT'),
+            Configuration::get(OcaEpak::CONFIG_PREFIX.'DEFVOLUME'),
+            OcaEpak::PADDING
+        );
         $shipping = $cart->getTotalShippingCost(NULL, FALSE);
         $totalToPay = Tools::ps_round(OcaCarrierTools::applyFee($shipping, $op->addfee), 2);
         $paidFee = $totalToPay - $shipping;
@@ -42,7 +49,10 @@ class AdminOcaEpakController extends ModuleAdminController
                 'Cuit' => Configuration::get(OcaEpak::CONFIG_PREFIX.'CUIT'),
                 'Operativa' => $op->reference
             ));
-            $quote = Tools::ps_round(OcaCarrierTools::convertCurrencyFromIso($data->Total, 'ARS', $cart->id_currency), 2);
+            $quote = Tools::ps_round(
+                OcaCarrierTools::convertCurrencyFromIso((string)$data->Total, 'ARS', $cart->id_currency),
+                2
+            );
             $quoteError = null;
         } catch (Exception $e) {
             $quoteError = $e->getMessage();
@@ -64,6 +74,11 @@ class AdminOcaEpakController extends ModuleAdminController
             'paidFee' => $paidFee,
             'distributionCenter' => $distributionCenter,
         ) );
-        die($this->module->display(_PS_MODULE_DIR_.$this->module->name.DIRECTORY_SEPARATOR.$this->module->name.'.php', _PS_VERSION_ < '1.6' ? 'displayAdminOrder15_ajax.tpl' : 'displayAdminOrder_ajax.tpl'));
+        die(
+            $this->module->display(
+                _PS_MODULE_DIR_ . $this->module->name . DIRECTORY_SEPARATOR . $this->module->name . '.php',
+                (_PS_VERSION_ < '1.6') ? 'displayAdminOrder15_ajax.tpl' : 'displayAdminOrder_ajax.tpl'
+            )
+        );
     }
 }

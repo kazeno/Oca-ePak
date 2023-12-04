@@ -2,7 +2,7 @@
  * Oca e-Pak Module for Prestashop  https://github.com/kazeno/Oca-ePak
  * @author    Rinku Kazeno
  * @license   MIT License  https://opensource.org/licenses/mit-license.php
- *  @file-version 2.1
+ *  @file-version 2.1.2
  *}
 
 <div class="panel card">
@@ -79,7 +79,8 @@
                         function cancelOcaOrder() {
                             //@todo: only show cancel butten if order cancellable
                             if (confirm('{/literal}{l s='This will cancel the current Oca Order' mod='ocaepak'}{literal}')) {
-                                window.location.href = 'index.php?controller=AdminOrders&id_order={/literal}{$ocaOrderId|escape:'htmlall':'UTF-8'}{literal}&vieworder&oca-order-cancel=1&token={/literal}{$smarty.get.token|escape:'htmlall':'UTF-8'} {literal}#oca-epak-orders';
+                                var searchParams = new URLSearchParams(window.location.search)
+                                window.location.href = 'index.php?controller=AdminOrders&id_order={/literal}{$ocaOrderId|escape:'htmlall':'UTF-8'}{literal}&vieworder&oca-order-cancel=1&token='+searchParams.get('token')+'#oca-epak-orders';
                             }
                         }
                     </script>{/literal}
