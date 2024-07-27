@@ -4,11 +4,14 @@
  *
  * @author    Rinku Kazeno
  * @license   MIT License  https://opensource.org/licenses/mit-license.php
- * @file-version 1.0.3
+ * @file-version 2.2.1
  */
 
 class OcaCarrierTools
 {
+    const IN_TO_M = 39.37;  //39.37 in to 1 m
+
+
     /**
      * Apply a fee to a payment amount
      * @param float $netAmount
@@ -17,23 +20,51 @@ class OcaCarrierTools
     public static function applyFee($netAmount, $fee)
     {
         $fee = Tools::strlen($fee) ? $fee : '0';
-        return strpos($fee, '%') ? (float)$netAmount*(1+(float)Tools::substr($fee, 0, -1)/100) : (float)$netAmount+(float)$fee;
+
+        return (
+            strpos($fee, '%')
+                ? (
+                    (float)$netAmount
+                    * (
+                        1
+                        + (float)Tools::substr($fee, 0, -1) / 100
+                    )
+                )
+                : (float)$netAmount + (float)$fee
+        );
     }
+
 
     public static function cleanPostcode($postcode)
     {
-        return preg_replace("/[^0-9]/", "", $postcode);
+        return preg_replace(
+            "/[^0-9]/",
+            "",
+            $postcode
+        );
     }
 
+
+    /**
+     * @throws PrestaShopException
+     * @throws PrestaShopDatabaseException
+     */
     public static function convertCurrencyFromIso($quantity, $iso, $currencyId)
     {
-        if (($curId = Currency::getIdByIsoCode($iso)) != $currencyId) {
+        $curId = Currency::getIdByIsoCode($iso);
+        if ($curId != $currencyId) {
             $currentCurrency = new Currency($currencyId);
             $cur = new Currency($curId);
-            $quantity = $quantity*$currentCurrency->conversion_rate/$cur->conversion_rate;
+            $quantity = (
+                $quantity
+                * $currentCurrency->conversion_rate
+                / $cur->conversion_rate
+            );
         }
+
         return $quantity;
     }
+
 
     /**
      * Returns cart data in kg and cubic m
@@ -44,6 +75,8 @@ class OcaCarrierTools
      * @param $defVolume
      * @param $defPadding
      * @return array
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
      */
     public static function getCartPhysicalData($cart, $id_carrier, $defWeight, $defVolume, $defPadding)
     {
@@ -54,19 +87,16 @@ class OcaCarrierTools
         switch (Configuration::get('PS_DIMENSION_UNIT')) {
             case 'm':
                 $divider = 1;
-                //$padding = $defPadding/100;
                 break;
             case 'in':
-                $divider = 39.37*39.37*39.37;  //39.37 in to 1 m
-                //$padding = $defPadding*0.3937;
+                $divider = self::IN_TO_M * self::IN_TO_M * self::IN_TO_M;
                 break;
             case 'cm':
             default:
                 $divider = 1000000;
-                //$padding = $defPadding;
                 break;
         }
-        $padding = $defPadding/100;
+        $padding = $defPadding / 100;
 
         switch (Configuration::get('PS_WEIGHT_UNIT')) {
             case 'lb':
@@ -85,43 +115,99 @@ class OcaCarrierTools
             $carriers = $productObj->getCarriers();
             $isProductCarrier = false;
             foreach ($carriers as $carrier) {
-                if (!$id_carrier || $carrier['id_carrier'] == $id_carrier) {
+                if (
+                    !$id_carrier
+                    || $carrier['id_carrier'] == $id_carrier
+                ) {
                     $isProductCarrier = true;
-                    continue;
                 }
             }
-            if ($product['is_virtual'] or (count($carriers) && !$isProductCarrier))
+            if (
+                $product['is_virtual']
+                || (
+                    count($carriers)
+                    && !$isProductCarrier
+                )
+            ) {
                 continue;
-            $weight += ($product['weight'] > 0 ? ($product['weight'] * $multiplier) : $defWeight) * $product['cart_quantity'];
-            $volume += (
-                $product['width']*$product['height']*$product['depth'] > 0 ?
-                    (($product['width'])*($product['height'])*($product['depth']))/$divider :
-                    $defVolume
-                )*$product['cart_quantity'];
-            $cost += $productObj->getPrice()*$product['cart_quantity'];
-        }
-        $paddedVolume = round(pow(pow($volume, 1/3)+(2*$padding), 3), 6);
+            }
 
-        return array('weight' => $weight, 'volume' => $paddedVolume, 'cost' => $cost);
+            $weight += (
+                (
+                    $product['weight'] > 0
+                        ? ($product['weight'] * $multiplier)
+                        : $defWeight
+                )
+                * $product['cart_quantity']
+            );
+            $volume += (
+                (
+                    ($product['width'] * $product['height'] * $product['depth']) > 0
+                        ? (
+                            ($product['width'] * $product['height'] * $product['depth'])
+                            / $divider
+                        )
+                        : $defVolume
+                )
+                * $product['cart_quantity']
+            );
+            $cost += (
+                $productObj->getPrice()
+                * $product['cart_quantity']
+            );
+        }
+        $paddedVolume = round(
+            pow(
+                (
+                    pow(
+                        $volume,
+                        1/3
+                    )
+                    + (2 * $padding)
+                ),
+                3
+            ),
+            6
+        );
+
+        return array(
+            'weight' => $weight,
+            'volume' => $paddedVolume,
+            'cost' => $cost
+        );
     }
+
 
     public static function interpolateSql($sql, $replacements)
     {
         foreach ($replacements as $var => $repl) {
             $replacements[$var] = pSQL($repl);
         }
-        return str_replace(array_keys($replacements), array_values($replacements), $sql);
+        return str_replace(
+            array_keys($replacements),
+            array_values($replacements),
+            $sql
+        );
     }
 
+
+    /**
+     * @throws RuntimeException
+     */
     public static function interpolateSqlFile($moduleName, $fileName, $replacements)
     {
-        $filePath = _PS_MODULE_DIR_."{$moduleName}/sql/{$fileName}.sql";
-        if (!file_exists($filePath))
-            throw new Exception('Wrong SQL Interpolation File Name: '.$fileName);
+        $filePath = _PS_MODULE_DIR_ . "{$moduleName}/sql/{$fileName}.sql";
+        if (!file_exists($filePath)) {
+            throw new RuntimeException('Wrong SQL Interpolation File Name: ' . $fileName);
+        }
         $file = Tools::file_get_contents($filePath);
         foreach ($replacements as $var => $repl) {
             $replacements[$var] = pSQL($repl);
         }
-        return str_replace(array_keys($replacements), array_values($replacements), $file);
+        return str_replace(
+            array_keys($replacements),
+            array_values($replacements),
+            $file
+        );
     }
 }
